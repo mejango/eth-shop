@@ -32,6 +32,8 @@ export default async function Account({ params }: { params: Promise<{ address: s
               {g.items.map((it) => (
                 <li key={it.tokenId} className="text-sm">
                   {it.image ? (
+                    // CSP img-src restricts this to the IPFS gateway and data: URIs, so it's
+                    // safe to load without the image optimizer.
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={it.image} alt="" className="aspect-square w-full rounded-sm object-cover" />
                   ) : (

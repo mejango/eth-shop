@@ -5,17 +5,20 @@ import { resolveShopRoute } from "@/lib/resolveShop";
 import { readShop } from "@/lib/shop";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 type Params = { handle: string };
 type Query = { item?: string; manage?: string };
 
-async function load(handle: string) {
+// Cached per request so generateMetadata and the page component share one readShop call
+// (and its RPC/Bendystraw reads) instead of fetching the same shop twice.
+const load = cache(async (handle: string) => {
   const route = await resolveShopRoute(handle);
   if (!route) return null;
   if ("demo" in route) return { shop: demoShop, items: demoItems, extras: demoExtras, demo: true };
   const data = await readShop(route.chainId, route.projectId);
   return data ? { ...data, extras: {}, demo: false } : null;
-}
+});
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { handle } = await params;
@@ -35,6 +38,7 @@ export default async function ShopPage(props: { params: Promise<Params>; searchP
       <Header right={<span className="hidden font-mono text-mute sm:inline">{data.shop.slug}</span>} />
       <ShopView
         shop={data.shop}
+        demo={data.demo}
         initialItems={data.items}
         extras={data.extras}
         initialOperators={data.demo ? [{ address: "ada.eth", can: ["Add & remove items", "Update item details"] }] : []}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isFeedWorthy, isValidCursor, orderFeedRows, usableFeedRows } from "@/lib/feed";
+import { distinctHooks, isFeedWorthy, isValidCursor, orderFeedRows, usableFeedRows } from "@/lib/feed";
 
 describe("orderFeedRows", () => {
   it("newest first, drops empty tiers", () => {
@@ -20,6 +20,26 @@ describe("usableFeedRows", () => {
       { chainId: 999999, hook: { address: "0x2", projectId: 2 }, tierId: 3 },
     ]);
     expect(rows.map((r) => r.tierId)).toEqual([1]);
+  });
+});
+
+describe("distinctHooks", () => {
+  it("dedupes by (chainId, hook address), case-insensitively, in first-seen order", () => {
+    const rows = [
+      { chainId: 8453, hook: { address: "0xAbC" } },
+      { chainId: 8453, hook: { address: "0xabc" } },
+      { chainId: 8453, hook: { address: "0xDEF" } },
+      { chainId: 1, hook: { address: "0xAbC" } },
+    ];
+    expect(distinctHooks(rows)).toEqual([
+      { chainId: 8453, address: "0xAbC" },
+      { chainId: 8453, address: "0xDEF" },
+      { chainId: 1, address: "0xAbC" },
+    ]);
+  });
+
+  it("is empty for an empty input", () => {
+    expect(distinctHooks([])).toEqual([]);
   });
 });
 

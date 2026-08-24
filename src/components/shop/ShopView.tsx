@@ -28,6 +28,7 @@ const priceOf = (item: Item, shop: Shop) => Number(item.effectivePrice) / 10 ** 
 
 export function ShopView({
   shop: initialShop,
+  demo,
   initialItems,
   initialOpen,
   initialManage,
@@ -35,6 +36,8 @@ export function ShopView({
   initialOperators = [],
 }: {
   shop: Shop;
+  /** Only `/demo` is interactive. A real shop is read-only until buying ships. */
+  demo: boolean;
   initialItems: Item[];
   initialOpen?: number;
   initialManage?: boolean;
@@ -51,7 +54,8 @@ export function ShopView({
   const [checkout, setCheckout] = useState(false);
   const [credits, setCredits] = useState(0);
   const [owned, setOwned] = useState<Owned[]>([]);
-  const [manage, setManage] = useState(!!initialManage);
+  // A real shop is never in Manage mode: the toggle is hidden and initialManage is ignored.
+  const [manage, setManage] = useState(demo && !!initialManage);
   const [log, setLog] = useState<string[]>([]);
   const unit = shop.currency;
 
@@ -100,13 +104,15 @@ export function ShopView({
             >
               eth.shop/{shop.handle ?? shop.slug}
             </button>
-            <button
-              type="button"
-              className={manage ? primary : ghost}
-              onClick={() => setManage((m) => !m)}
-            >
-              {manage ? "Back to shop" : "Manage"}
-            </button>
+            {demo && (
+              <button
+                type="button"
+                className={manage ? primary : ghost}
+                onClick={() => setManage((m) => !m)}
+              >
+                {manage ? "Back to shop" : "Manage"}
+              </button>
+            )}
           </div>
         </div>
         {(shop.ruleset.pauseTransfers || shop.ruleset.pauseMintPendingReserves) && (
@@ -162,7 +168,7 @@ export function ShopView({
       )}
 
       {/* Cart bar */}
-      {!manage && (cartCount > 0 || credits > 0 || owned.length > 0) && (
+      {demo && !manage && (cartCount > 0 || credits > 0 || owned.length > 0) && (
         <div className="fixed inset-x-0 bottom-0 z-10 border-t border-shelf-deep bg-paper px-5 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-baseline gap-4 text-sm">
@@ -252,56 +258,60 @@ export function ShopView({
                 <dt className="text-mute">Sold</dt>
                 <dd className="text-right font-mono">{openItem.sold}</dd>
               </dl>
-              <div className="mt-auto space-y-2 pt-6">
-                <button
-                  type="button"
-                  disabled={openItem.remaining === 0}
-                  className={`${primary} w-full py-3 text-lg`}
-                  onClick={() => {
-                    add(openItem.tierId);
-                    setOpen(undefined);
-                    setCheckout(true);
-                  }}
-                >
-                  {openItem.remaining === 0
-                    ? "Sold out"
-                    : `Buy for ${priceOf(openItem, shop) ? `${fmt(priceOf(openItem, shop))} ${unit}` : "free"}`}
-                </button>
-                <button
-                  type="button"
-                  disabled={openItem.remaining === 0}
-                  className={`${ghost} w-full`}
-                  onClick={() => {
-                    add(openItem.tierId);
-                    setOpen(undefined);
-                  }}
-                >
-                  Add to cart
-                </button>
-                {!!extras[openItem.tierId]?.reservePending && (
+              {demo ? (
+                <div className="mt-auto space-y-2 pt-6">
                   <button
                     type="button"
-                    disabled={shop.ruleset.pauseMintPendingReserves}
-                    className={`${ghost} w-full`}
-                    onClick={() => mintReserves(openItem)}
+                    disabled={openItem.remaining === 0}
+                    className={`${primary} w-full py-3 text-lg`}
+                    onClick={() => {
+                      add(openItem.tierId);
+                      setOpen(undefined);
+                      setCheckout(true);
+                    }}
                   >
-                    Mint {extras[openItem.tierId]?.reservePending} reserved to{" "}
-                    {openItem.reserveBeneficiary} (anyone can)
+                    {openItem.remaining === 0
+                      ? "Sold out"
+                      : `Buy for ${priceOf(openItem, shop) ? `${fmt(priceOf(openItem, shop))} ${unit}` : "free"}`}
                   </button>
-                )}
-                <Holder item={openItem} shop={shop} owned={owned} setOwned={setOwned} sign={sign} />
-                {openItem.kind === "physical" && (
-                  <p className="text-center text-xs text-mute">
-                    Shipping details are shared privately with the shop after purchase.
-                  </p>
-                )}
-              </div>
+                  <button
+                    type="button"
+                    disabled={openItem.remaining === 0}
+                    className={`${ghost} w-full`}
+                    onClick={() => {
+                      add(openItem.tierId);
+                      setOpen(undefined);
+                    }}
+                  >
+                    Add to cart
+                  </button>
+                  {!!extras[openItem.tierId]?.reservePending && (
+                    <button
+                      type="button"
+                      disabled={shop.ruleset.pauseMintPendingReserves}
+                      className={`${ghost} w-full`}
+                      onClick={() => mintReserves(openItem)}
+                    >
+                      Mint {extras[openItem.tierId]?.reservePending} reserved to{" "}
+                      {openItem.reserveBeneficiary} (anyone can)
+                    </button>
+                  )}
+                  <Holder item={openItem} shop={shop} owned={owned} setOwned={setOwned} sign={sign} />
+                  {openItem.kind === "physical" && (
+                    <p className="text-center text-xs text-mute">
+                      Shipping details are shared privately with the shop after purchase.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="mt-6 text-sm text-mute">Buying opens soon.</p>
+              )}
             </div>
           </div>
         </Dialog>
       )}
 
-      {checkout && (
+      {demo && checkout && (
         <Checkout
           lines={cartLines}
           unit={unit}

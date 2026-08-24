@@ -1,3 +1,4 @@
+import "server-only";
 import { jbCenterRpcTransport } from "@/lib/jbcenter-rpc";
 import { JB_CHAIN_SLUGS, JB_CHAINS, type JBChainId } from "@bananapus/nana-sdk-core";
 import { createPublicClient, fallback, http, type PublicClient, type Transport } from "viem";
@@ -24,7 +25,20 @@ export function chainName(chainId: JBChainId): string {
 
 /** The explicit `NEXT_PUBLIC_RPC_<chainId>` override, parsed, with no fallback applied. */
 function parsedRpcOverride(chainId: JBChainId): string[] {
-  const raw = process.env[`NEXT_PUBLIC_RPC_${chainId}`]?.trim();
+  // A static map, not a computed `process.env[...]` lookup, so Next's build-time env
+  // inlining can see every `NEXT_PUBLIC_RPC_*` reference. Built inside the function (not
+  // at module load) so tests that set `process.env` at runtime still take effect.
+  const RPC_OVERRIDES: Record<number, string | undefined> = {
+    1: process.env.NEXT_PUBLIC_RPC_1,
+    8453: process.env.NEXT_PUBLIC_RPC_8453,
+    10: process.env.NEXT_PUBLIC_RPC_10,
+    42161: process.env.NEXT_PUBLIC_RPC_42161,
+    11155111: process.env.NEXT_PUBLIC_RPC_11155111,
+    84532: process.env.NEXT_PUBLIC_RPC_84532,
+    11155420: process.env.NEXT_PUBLIC_RPC_11155420,
+    421614: process.env.NEXT_PUBLIC_RPC_421614,
+  };
+  const raw = RPC_OVERRIDES[chainId]?.trim();
   return raw ? raw.split(",").map((u) => u.trim()).filter(Boolean) : [];
 }
 

@@ -36,7 +36,7 @@ export type OwnedItem = { tokenId: string; tierId: number; shop: string; shopNam
 // `nft.metadata`/`nft.tokenUri` are a per-token *customization override* (see
 // `nft.customized`) — empty for the common case of an un-customized token. The tier's own
 // metadata is the real source there: the same one readShop() reads via nftHooks.nftTiers.
-function tierSourceFor(r: Row): BendyTier {
+export function tierSourceFor(r: Row): BendyTier {
   if (r.customized) {
     return { tierId: r.tierId, metadata: r.metadata, resolvedUri: r.tokenUri?.startsWith("data:") ? r.tokenUri : null };
   }

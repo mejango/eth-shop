@@ -1,6 +1,8 @@
 import "server-only";
+import type { JBChainId } from "@bananapus/nana-sdk-core";
+import type { Address } from "viem";
 import { bendystraw } from "./bendystraw";
-import { isSupportedChain, SUPPORTED_CHAIN_IDS } from "./chains";
+import { isSupportedChain, publicClientFor, SUPPORTED_CHAIN_IDS } from "./chains";
 import { currencyOf, mapItem } from "./items";
 import { mergeTierMeta, resolvedMediaUrl, type BendyTier } from "./shop";
 import { slugFor } from "./slug";
@@ -65,11 +67,68 @@ export function usableFeedRows<T extends { chainId: number; hook: unknown }>(
   );
 }
 
-// ponytail: nftTier carries no pricing currency/decimals, so the feed labels every price as 18-dec ETH
-// and the shop page corrects it from chain. Fix at the source once Bendystraw indexes hook pricing.
+/** The distinct (chainId, hook address) pairs across a set of feed rows, in first-seen order. */
+export function distinctHooks<T extends { chainId: number; hook: { address: string } }>(
+  rows: T[],
+): { chainId: number; address: string }[] {
+  const seen = new Set<string>();
+  const out: { chainId: number; address: string }[] = [];
+  for (const r of rows) {
+    const key = `${r.chainId}:${r.hook.address.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ chainId: r.chainId, address: r.hook.address });
+  }
+  return out;
+}
+
+// JB721TiersHook.pricingContext() (nana-721-hook-v6 src/JB721TiersHook.sol): not part of the
+// SDK's public export surface (see the same note on storeFlagsAbi in shop.ts), so it's
+// hand-rolled here too.
+const pricingContextAbi = [
+  {
+    type: "function",
+    name: "pricingContext",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [
+      { type: "uint256", name: "currency" },
+      { type: "uint256", name: "decimals" },
+    ],
+  },
+] as const;
+
+const DEFAULT_PRICING = { currency: 1, decimals: 18 };
+
+// nftTier carries no pricing currency/decimals, so the feed reads each distinct hook's
+// pricingContext() directly rather than assuming 18-dec ETH. A failed read for one hook
+// falls back to that default rather than failing the whole feed.
+async function pricingByHook(
+  hooks: { chainId: number; address: string }[],
+): Promise<Map<string, { currency: number; decimals: number }>> {
+  const entries = await Promise.all(
+    hooks.map(async ({ chainId, address }) => {
+      const key = `${chainId}:${address.toLowerCase()}`;
+      try {
+        const [currency, decimals] = await publicClientFor(chainId as JBChainId).readContract({
+          address: address as Address,
+          abi: pricingContextAbi,
+          functionName: "pricingContext",
+        });
+        return [key, { currency: Number(currency), decimals: Number(decimals) }] as const;
+      } catch (error) {
+        console.warn("pricingContext read failed", chainId, address, error);
+        return [key, DEFAULT_PRICING] as const;
+      }
+    }),
+  );
+  return new Map(entries);
+}
+
 export async function readFeed({ limit = 40, after = null }: { limit?: number; after?: string | null } = {}): Promise<Feed> {
   const data = await bendystraw<FeedQuery>(SUPPORTED_CHAIN_IDS[0], FEED_QUERY, { limit, after });
   const rows = usableFeedRows(orderFeedRows(data.nftTiers.items));
+  const pricing = await pricingByHook(distinctHooks(rows));
   const items = rows.flatMap((r) => {
     const meta = mergeTierMeta([r]).get(r.tierId);
     if (!isFeedWorthy(meta)) return [];
@@ -87,7 +146,8 @@ export async function readFeed({ limit = 40, after = null }: { limit?: number; a
       encodedIpfsUri: "0x" as const,
       resolvedUri: r.resolvedUri ?? "",
     };
-    return [{ ...mapItem({ shopSlug: slug, tier, meta, currency: currencyOf({ currency: 1 }), decimals: 18 }), shopName: pm.name ?? slug, shopLogo: resolvedMediaUrl(pm.logoUri) }];
+    const p = pricing.get(`${r.chainId}:${r.hook.address.toLowerCase()}`) ?? DEFAULT_PRICING;
+    return [{ ...mapItem({ shopSlug: slug, tier, meta, currency: currencyOf(p), decimals: p.decimals }), shopName: pm.name ?? slug, shopLogo: resolvedMediaUrl(pm.logoUri) }];
   });
   return { items, next: data.nftTiers.pageInfo.hasNextPage ? data.nftTiers.pageInfo.endCursor : null };
 }

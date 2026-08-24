@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isRevnetOwner, mergeTierMeta, resolvedMediaUrl } from "@/lib/shop";
+import { isRevnetFor, isRevnetOwner, mergeTierMeta, resolvedMediaUrl } from "@/lib/shop";
 
 describe("mergeTierMeta", () => {
   it("keys rows by tierId, resolves a valid ipfs CID through the gateway, reads flags", () => {
@@ -67,5 +67,23 @@ describe("isRevnetOwner", () => {
 
   it("is false when there's no REVOwner deployment on the chain", () => {
     expect(isRevnetOwner(REV_OWNER, null)).toBe(false);
+  });
+});
+
+describe("isRevnetFor", () => {
+  const REV_OWNER = "0x2ba4705ad0332cdfb299b452068438bcba3faaf3";
+  const OTHER_OWNER = "0x0000000000000000000000000000000000dEaD";
+
+  it("chain wins: known owner IS the REVOwner, regardless of Bendystraw", () => {
+    expect(isRevnetFor(REV_OWNER, REV_OWNER, false)).toBe(true);
+  });
+
+  it("chain wins: known owner is NOT the REVOwner, even if Bendystraw says isRevnet", () => {
+    expect(isRevnetFor(OTHER_OWNER, REV_OWNER, true)).toBe(false);
+  });
+
+  it("falls back to Bendystraw's flag when the owner probe is null", () => {
+    expect(isRevnetFor(null, REV_OWNER, true)).toBe(true);
+    expect(isRevnetFor(null, REV_OWNER, false)).toBe(false);
   });
 });

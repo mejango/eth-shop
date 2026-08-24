@@ -41,7 +41,9 @@ export function ItemCard({
   const inner = (
     <>
       {item.image ? (
-        // eslint-disable-next-line @next/next/no-img-element -- content-addressed media, no optimizer
+        // CSP img-src restricts this to the IPFS gateway and data: URIs, so it's safe to
+        // load without the image optimizer.
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           src={item.image}
           alt=""

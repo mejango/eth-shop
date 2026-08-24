@@ -60,6 +60,15 @@ export function isRevnetOwner(owner: Address, revOwner: Address | null): boolean
   return revOwner !== null && owner.toLowerCase() === revOwner.toLowerCase();
 }
 
+// Chain wins whenever it has an answer: a non-null ownerProbe means ownerOf() actually
+// returned an owner, so the on-chain isRevnetOwner check is authoritative and Bendystraw's
+// isRevnet flag (indexer lag, or a project it hasn't flagged yet) never overrides it.
+// Bendystraw is consulted only when ownerProbe is null (ownerOf() reverted — project never
+// minted, or the probe otherwise came back empty).
+export function isRevnetFor(ownerProbe: Address | null, revOwner: Address | null, bendyFlag: boolean): boolean {
+  return ownerProbe !== null ? isRevnetOwner(ownerProbe, revOwner) : bendyFlag;
+}
+
 export function mergeTierMeta(rows: BendyTier[]): Map<number, TierMeta> {
   const out = new Map<number, TierMeta>();
   for (const r of rows) {
@@ -125,7 +134,11 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
   const [bendy, ownerProbe] = await Promise.all([
     bendystraw<ShopQuery>(chainId, SHOP_QUERY, { chainId, projectId: Number(projectId) })
       .then((r) => r.project)
-      .catch((): ShopQuery["project"] => null), // lists/metadata are optional; the chain reads below are authoritative
+      .catch((error: unknown): ShopQuery["project"] => {
+        // lists/metadata are optional; the chain reads below are authoritative
+        console.warn("bendystraw shop query failed", error);
+        return null;
+      }),
     projectOwner(chainId, projectId).catch((error: unknown) => {
       // ownerOf() reverts for a project that was never minted — a legitimate
       // "no shop" signal handled by the null hook below, not a transport
@@ -136,7 +149,7 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
       throw error;
     }),
   ]);
-  const isRevnet = (ownerProbe !== null && isRevnetOwner(ownerProbe, revOwnerAddress(chainId))) || (bendy?.isRevnet ?? false);
+  const isRevnet = isRevnetFor(ownerProbe, revOwnerAddress(chainId), bendy?.isRevnet ?? false);
   const sdk = await getProject721Shop(client, { chainId, projectId, isRevnet, tierLimit: 1000 });
   if (!sdk) return null;
   // getProject721Shop only resolves a hook for a project that exists, so the

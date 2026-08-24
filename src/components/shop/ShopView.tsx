@@ -1,33 +1,50 @@
 "use client";
-import { Art, Availability, ItemCard, Price, priceAfterDiscount } from "@/components/ItemCard";
+import { Art, Availability, ItemCard, Price } from "@/components/ItemCard";
 import { blankItem, type ItemDraft } from "@/components/sell/draft";
 import { ItemFields } from "@/components/sell/ItemFields";
 import { Check, Field, More, field } from "@/components/sell/ui";
-import type { Item, Shop } from "@/lib/fixtures";
+import { formatPrice } from "@/lib/items";
+import type { Item, Shop } from "@/lib/types";
+import { TIER_UNLIMITED_SUPPLY } from "@bananapus/nana-sdk-core/v6";
 import { useEffect, useRef, useState } from "react";
+import type { Address } from "viem";
 
 // ponytail: the whole storefront + owner console on local state so every 721 action is clickable.
 // Each "sign" call is where a real tx goes; the log shows what would be signed.
 
 type Owned = { item: number; tokenId: string };
+type Operator = { address: string; can: string[] };
+type Extras = Record<
+  number,
+  { reservePending?: number; noCredits?: boolean; splitPercent?: number; splitTo?: string }
+>;
 const btn = "rounded-full px-4 py-2 text-sm font-medium";
 const primary = `${btn} bg-accent text-paper hover:bg-accent-ink disabled:bg-shelf-deep disabled:text-mute`;
 const ghost = `${btn} border border-ink hover:bg-shelf disabled:border-shelf-deep disabled:text-mute`;
 const fmt = (n: number) => +n.toPrecision(4);
+
+// ponytail: demo arithmetic; Phase 2 quotes from chain
+const priceOf = (item: Item, shop: Shop) => Number(item.effectivePrice) / 10 ** shop.decimals;
 
 export function ShopView({
   shop: initialShop,
   initialItems,
   initialOpen,
   initialManage,
+  extras: initialExtras = {},
+  initialOperators = [],
 }: {
   shop: Shop;
   initialItems: Item[];
   initialOpen?: number;
   initialManage?: boolean;
+  extras?: Extras;
+  initialOperators?: Operator[];
 }) {
   const [shop, setShop] = useState(initialShop);
   const [items, setItems] = useState(initialItems);
+  const [extras, setExtras] = useState<Extras>(initialExtras);
+  const [operators, setOperators] = useState<Operator[]>(initialOperators);
   const [cat, setCat] = useState<string>();
   const [open, setOpen] = useState<number | undefined>(initialOpen);
   const [cart, setCart] = useState<Record<number, number>>({});
@@ -36,32 +53,31 @@ export function ShopView({
   const [owned, setOwned] = useState<Owned[]>([]);
   const [manage, setManage] = useState(!!initialManage);
   const [log, setLog] = useState<string[]>([]);
-  const unit = shop.currency ?? "ETH";
+  const unit = shop.currency;
 
   const sign = (what: string) => setLog((l) => [what, ...l]);
-  const patch = (id: number, p: Partial<Item>) =>
-    setItems((xs) => xs.map((x) => (x.id === id ? { ...x, ...p } : x)));
-  const live = items.filter((i) => !i.removed);
-  const cats = [...new Set(live.map((i) => i.category))];
-  const shown = cat ? live.filter((i) => i.category === cat) : live;
-  const openItem = items.find((i) => i.id === open);
+  const patch = (tierId: number, p: Partial<Item>) =>
+    setItems((xs) => xs.map((x) => (x.tierId === tierId ? { ...x, ...p } : x)));
+  const cats = [...new Set(items.map((i) => i.categoryName))];
+  const shown = cat ? items.filter((i) => i.categoryName === cat) : items;
+  const openItem = items.find((i) => i.tierId === open);
 
   const cartLines = Object.entries(cart).map(([id, qty]) => ({
-    item: items.find((i) => i.id === Number(id))!,
+    item: items.find((i) => i.tierId === Number(id))!,
     qty,
   }));
-  const cartTotal = cartLines.reduce((s, l) => s + priceAfterDiscount(l.item) * l.qty, 0);
+  const cartTotal = cartLines.reduce((s, l) => s + priceOf(l.item, shop) * l.qty, 0);
   const cartCount = cartLines.reduce((s, l) => s + l.qty, 0);
-  const add = (id: number, n = 1) => setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + n }));
+  const add = (tierId: number, n = 1) => setCart((c) => ({ ...c, [tierId]: (c[tierId] ?? 0) + n }));
 
   const mintReserves = (item: Item) => {
-    const n = item.reservePending ?? 0;
+    const n = extras[item.tierId]?.reservePending ?? 0;
     if (!n) return;
-    sign(`mintPendingReservesFor(tier ${item.id}, ${n}) → ${item.reserveTo}`);
-    patch(item.id, {
-      reservePending: 0,
-      left: item.left === undefined ? undefined : item.left - n,
+    sign(`mintPendingReservesFor(tier ${item.tierId}, ${n}) → ${item.reserveBeneficiary}`);
+    patch(item.tierId, {
+      remaining: item.remaining === undefined ? undefined : item.remaining - n,
     });
+    setExtras((ex) => ({ ...ex, [item.tierId]: { ...ex[item.tierId], reservePending: 0 } }));
   };
 
   return (
@@ -77,10 +93,12 @@ export function ShopView({
             <button
               type="button"
               className={`${ghost} font-mono`}
-              onClick={() => navigator.clipboard?.writeText(`https://eth.shop/${shop.handle}`)}
+              onClick={() =>
+                navigator.clipboard?.writeText(`https://eth.shop/${shop.handle ?? shop.slug}`)
+              }
               title="Copy link"
             >
-              eth.shop/{shop.handle}
+              eth.shop/{shop.handle ?? shop.slug}
             </button>
             <button
               type="button"
@@ -91,10 +109,10 @@ export function ShopView({
             </button>
           </div>
         </div>
-        {(shop.transfersPaused || shop.reservesPaused) && (
+        {(shop.ruleset.pauseTransfers || shop.ruleset.pauseMintPendingReserves) && (
           <p className="mt-4 text-xs text-mute">
-            {shop.transfersPaused && "Transfers are paused for items that allow it. "}
-            {shop.reservesPaused && "Reserve minting is paused."}
+            {shop.ruleset.pauseTransfers && "Transfers are paused for items that allow it. "}
+            {shop.ruleset.pauseMintPendingReserves && "Reserve minting is paused."}
           </p>
         )}
       </section>
@@ -106,6 +124,10 @@ export function ShopView({
           items={items}
           patch={patch}
           setItems={setItems}
+          extras={extras}
+          setExtras={setExtras}
+          operators={operators}
+          setOperators={setOperators}
           sign={sign}
           mintReserves={mintReserves}
         />
@@ -125,7 +147,7 @@ export function ShopView({
                 >
                   {c ?? "Everything"}
                   <span className="ml-1.5 font-mono text-xs text-mute">
-                    {c ? live.filter((i) => i.category === c).length : live.length}
+                    {c ? items.filter((i) => i.categoryName === c).length : items.length}
                   </span>
                 </button>
               ))}
@@ -133,7 +155,7 @@ export function ShopView({
           )}
           <section className="grid grid-cols-2 gap-x-5 gap-y-10 px-5 py-10 pb-32 sm:grid-cols-3 lg:grid-cols-5">
             {shown.map((item) => (
-              <ItemCard key={item.id} item={item} unit={unit} onOpen={() => setOpen(item.id)} />
+              <ItemCard key={item.tierId} item={item} onOpen={() => setOpen(item.tierId)} />
             ))}
           </section>
         </>
@@ -181,41 +203,45 @@ export function ShopView({
       {openItem && (
         <Dialog onClose={() => setOpen(undefined)} wide>
           <div className="grid sm:grid-cols-2">
-            <Art hue={openItem.hue} className="h-full" />
+            <Art hue={(openItem.tierId * 47) % 360} className="h-full" />
             <div className="flex flex-col p-6">
               <p className="font-mono text-xs text-mute">
-                eth.shop/{shop.handle} / {openItem.category}
+                eth.shop/{shop.handle ?? shop.slug} / {openItem.categoryName}
               </p>
               <h2 className="display mt-1 text-2xl font-extrabold">{openItem.name}</h2>
               <p className="mt-3 text-sm text-mute">
-                {openItem.blurb ??
+                {openItem.description ??
                   (openItem.kind === "digital"
                     ? "Delivered as a download in your receipt."
                     : "Ships after purchase.")}
               </p>
               <ul className="mt-4 flex flex-wrap gap-2 text-xs">
-                {openItem.discount ? <Badge>{openItem.discount}% off</Badge> : null}
-                {openItem.reserveEvery ? (
+                {openItem.discountPercent > 0 ? (
+                  <Badge>{openItem.discountPercent / 2}% off</Badge>
+                ) : null}
+                {openItem.reserveFrequency ? (
                   <Badge>
-                    1 in {openItem.reserveEvery} reserved for {openItem.reserveTo}
+                    1 in {openItem.reserveFrequency} reserved for {openItem.reserveBeneficiary}
                   </Badge>
                 ) : null}
-                {openItem.votes ? <Badge>{openItem.votes} votes each</Badge> : null}
-                {openItem.nonTransferable && <Badge>non-transferable</Badge>}
-                {openItem.permanent && <Badge>permanent</Badge>}
-                {openItem.noCredits && <Badge>no credit purchases</Badge>}
-                {openItem.ownerMint && <Badge>owner can mint free</Badge>}
-                {openItem.splitPercent ? (
+                {Number(openItem.votingUnits) ? (
+                  <Badge>{Number(openItem.votingUnits)} votes each</Badge>
+                ) : null}
+                {openItem.transfersPausable && <Badge>non-transferable</Badge>}
+                {openItem.cantBeRemoved && <Badge>permanent</Badge>}
+                {extras[openItem.tierId]?.noCredits && <Badge>no credit purchases</Badge>}
+                {openItem.allowOwnerMint && <Badge>owner can mint free</Badge>}
+                {extras[openItem.tierId]?.splitPercent ? (
                   <Badge>
-                    {openItem.splitPercent}% to {openItem.splitTo}
+                    {extras[openItem.tierId]?.splitPercent}% to {extras[openItem.tierId]?.splitTo}
                   </Badge>
                 ) : null}
-                {shop.cashOut && <Badge>cashes out for surplus</Badge>}
+                {shop.ruleset.cashOut && <Badge>cashes out for surplus</Badge>}
               </ul>
               <dl className="tag mt-6 grid grid-cols-2 gap-y-2 pt-4 text-sm">
                 <dt className="text-mute">Price</dt>
                 <dd className="text-right">
-                  <Price item={openItem} unit={unit} big />
+                  <Price item={openItem} big />
                 </dd>
                 <dt className="text-mute">Availability</dt>
                 <dd className="text-right">
@@ -223,47 +249,44 @@ export function ShopView({
                 </dd>
                 <dt className="text-mute">Type</dt>
                 <dd className="text-right capitalize">{openItem.kind}</dd>
-                {openItem.sold !== undefined && (
-                  <>
-                    <dt className="text-mute">Sold</dt>
-                    <dd className="text-right font-mono">{openItem.sold}</dd>
-                  </>
-                )}
+                <dt className="text-mute">Sold</dt>
+                <dd className="text-right font-mono">{openItem.sold}</dd>
               </dl>
               <div className="mt-auto space-y-2 pt-6">
                 <button
                   type="button"
-                  disabled={openItem.left === 0 || openItem.removed}
+                  disabled={openItem.remaining === 0}
                   className={`${primary} w-full py-3 text-lg`}
                   onClick={() => {
-                    add(openItem.id);
+                    add(openItem.tierId);
                     setOpen(undefined);
                     setCheckout(true);
                   }}
                 >
-                  {openItem.left === 0
+                  {openItem.remaining === 0
                     ? "Sold out"
-                    : `Buy for ${priceAfterDiscount(openItem) ? `${priceAfterDiscount(openItem)} ${unit}` : "free"}`}
+                    : `Buy for ${priceOf(openItem, shop) ? `${fmt(priceOf(openItem, shop))} ${unit}` : "free"}`}
                 </button>
                 <button
                   type="button"
-                  disabled={openItem.left === 0 || openItem.removed}
+                  disabled={openItem.remaining === 0}
                   className={`${ghost} w-full`}
                   onClick={() => {
-                    add(openItem.id);
+                    add(openItem.tierId);
                     setOpen(undefined);
                   }}
                 >
                   Add to cart
                 </button>
-                {!!openItem.reservePending && (
+                {!!extras[openItem.tierId]?.reservePending && (
                   <button
                     type="button"
-                    disabled={shop.reservesPaused}
+                    disabled={shop.ruleset.pauseMintPendingReserves}
                     className={`${ghost} w-full`}
                     onClick={() => mintReserves(openItem)}
                   >
-                    Mint {openItem.reservePending} reserved to {openItem.reserveTo} (anyone can)
+                    Mint {extras[openItem.tierId]?.reservePending} reserved to{" "}
+                    {openItem.reserveBeneficiary} (anyone can)
                   </button>
                 )}
                 <Holder item={openItem} shop={shop} owned={owned} setOwned={setOwned} sign={sign} />
@@ -284,26 +307,33 @@ export function ShopView({
           unit={unit}
           credits={credits}
           shop={shop}
+          extras={extras}
           onClose={() => setCheckout(false)}
           onPay={(spent, newCredits, minted) => {
             setCredits(newCredits);
             setOwned((o) => [...o, ...minted]);
             for (const l of cartLines) {
-              const sold = (l.item.sold ?? 0) + l.qty;
-              const reserved = l.item.reserveEvery
-                ? Math.ceil(sold / l.item.reserveEvery) -
-                  Math.ceil((l.item.sold ?? 0) / l.item.reserveEvery)
+              const sold = l.item.sold + l.qty;
+              const reserved = l.item.reserveFrequency
+                ? Math.ceil(sold / l.item.reserveFrequency) -
+                  Math.ceil(l.item.sold / l.item.reserveFrequency)
                 : 0;
-              patch(l.item.id, {
+              patch(l.item.tierId, {
                 sold,
-                left: l.item.left === undefined ? undefined : l.item.left - l.qty - reserved,
-                reservePending: (l.item.reservePending ?? 0) + reserved,
+                remaining: l.item.remaining === undefined ? undefined : l.item.remaining - l.qty - reserved,
               });
+              if (reserved) {
+                const pending = extras[l.item.tierId]?.reservePending ?? 0;
+                setExtras((ex) => ({
+                  ...ex,
+                  [l.item.tierId]: { ...ex[l.item.tierId], reservePending: pending + reserved },
+                }));
+              }
             }
             setCart({});
             setCheckout(false);
             sign(
-              `pay(${fmt(spent)} ${unit}, tiers [${cartLines.map((l) => `${l.item.id}×${l.qty}`).join(", ")}])`,
+              `pay(${fmt(spent)} ${unit}, tiers [${cartLines.map((l) => `${l.item.tierId}×${l.qty}`).join(", ")}])`,
             );
           }}
         />
@@ -374,11 +404,12 @@ function Holder({
   setOwned: (f: (o: Owned[]) => Owned[]) => void;
   sign: (s: string) => void;
 }) {
-  const mine = owned.filter((o) => o.item === item.id);
+  const mine = owned.filter((o) => o.item === item.tierId);
   if (!mine.length) return null;
   const one = mine[0];
   const drop = () => setOwned((o) => o.filter((x) => x.tokenId !== one.tokenId));
-  const transferBlocked = item.nonTransferable && shop.transfersPaused;
+  const transferBlocked = item.transfersPausable && shop.ruleset.pauseTransfers;
+  const votes = Number(item.votingUnits);
   return (
     <div className="tag mt-2 space-y-2 pt-3">
       <p className="text-xs text-mute">
@@ -397,25 +428,27 @@ function Holder({
         >
           Send
         </button>
-        {shop.cashOut && (
+        {shop.ruleset.cashOut && (
           <button
             type="button"
             className={ghost}
             onClick={() => {
-              sign(`cashOutTokensOf(token ${one.tokenId}) → share of ${shop.surplus} ETH surplus`);
+              sign(
+                `cashOutTokensOf(token ${one.tokenId}) → share of ${shop.surplus ?? "0"} ${shop.currency} surplus`,
+              );
               drop();
             }}
           >
             Cash out
           </button>
         )}
-        {!!item.votes && (
+        {!!votes && (
           <button
             type="button"
             className={ghost}
             onClick={() => sign(`checkpoints.delegate(you, [${one.tokenId}])`)}
           >
-            Delegate {item.votes} votes
+            Delegate {votes} votes
           </button>
         )}
       </div>
@@ -428,6 +461,7 @@ function Checkout({
   unit,
   credits,
   shop,
+  extras,
   onClose,
   onPay,
 }: {
@@ -435,14 +469,15 @@ function Checkout({
   unit: string;
   credits: number;
   shop: Shop;
+  extras: Extras;
   onClose: () => void;
   onPay: (spent: number, credits: number, minted: Owned[]) => void;
 }) {
   const [tip, setTip] = useState(false);
-  const total = lines.reduce((s, l) => s + priceAfterDiscount(l.item) * l.qty, 0);
+  const total = lines.reduce((s, l) => s + priceOf(l.item, shop) * l.qty, 0);
   const noCreditPart = lines
-    .filter((l) => l.item.noCredits)
-    .reduce((s, l) => s + priceAfterDiscount(l.item) * l.qty, 0);
+    .filter((l) => extras[l.item.tierId]?.noCredits)
+    .reduce((s, l) => s + priceOf(l.item, shop) * l.qty, 0);
   const creditUsed = Math.min(credits, total - noCreditPart);
   const tipAmt = tip ? +(Math.ceil(total * 100) / 100 - total).toFixed(4) : 0;
   const due = total - creditUsed + tipAmt;
@@ -452,13 +487,13 @@ function Checkout({
         <h2 className="display text-2xl font-extrabold">Check out</h2>
         <ul className="mt-4 space-y-2 text-sm">
           {lines.map((l) => (
-            <li key={l.item.id} className="flex justify-between gap-3">
+            <li key={l.item.tierId} className="flex justify-between gap-3">
               <span>
                 {l.item.name}
                 {l.qty > 1 && <span className="text-mute"> ×{l.qty}</span>}
               </span>
               <span className="font-mono">
-                {fmt(priceAfterDiscount(l.item) * l.qty)} {unit}
+                {fmt(priceOf(l.item, shop) * l.qty)} {unit}
               </span>
             </li>
           ))}
@@ -494,7 +529,7 @@ function Checkout({
             {fmt(due)} {unit}
           </dd>
         </dl>
-        {!shop.preventOverspending ? (
+        {!shop.flags.preventOverspending ? (
           <label className="mt-4 flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -509,7 +544,7 @@ function Checkout({
           <p className="mt-4 text-xs text-mute">This shop requires exact payment.</p>
         )}
         <p className="mt-2 text-xs text-mute">
-          You&apos;ll also receive {shop.symbol ?? "shop"} project tokens for what stays in the
+          You&apos;ll also receive {shop.symbol || "shop"} project tokens for what stays in the
           shop.
         </p>
         <button
@@ -521,8 +556,8 @@ function Checkout({
               credits - creditUsed + tipAmt,
               lines.flatMap((l) =>
                 Array.from({ length: l.qty }, (_, k) => ({
-                  item: l.item.id,
-                  tokenId: `${l.item.id}${String((l.item.sold ?? 0) + k + 1).padStart(9, "0")}`,
+                  item: l.item.tierId,
+                  tokenId: `${l.item.tierId}${String(l.item.sold + k + 1).padStart(9, "0")}`,
                 })),
               ),
             )
@@ -542,22 +577,43 @@ function Manage({
   items,
   patch,
   setItems,
+  extras,
+  setExtras,
+  operators,
+  setOperators,
   sign,
   mintReserves,
 }: {
   shop: Shop;
   setShop: (s: Shop) => void;
   items: Item[];
-  patch: (id: number, p: Partial<Item>) => void;
+  patch: (tierId: number, p: Partial<Item>) => void;
   setItems: (f: (i: Item[]) => Item[]) => void;
+  extras: Extras;
+  setExtras: (f: (e: Extras) => Extras) => void;
+  operators: Operator[];
+  setOperators: (f: (o: Operator[]) => Operator[]) => void;
   sign: (s: string) => void;
   mintReserves: (i: Item) => void;
 }) {
   const [draft, setDraft] = useState<ItemDraft>(blankItem());
-  const [cats, setCats] = useState([...new Set(items.map((i) => i.category))]);
+  const [cats, setCats] = useState([...new Set(items.map((i) => i.categoryName))]);
   const [newOp, setNewOp] = useState("");
   const setS = (p: Partial<Shop>) => setShop({ ...shop, ...p });
-  const pending = items.filter((i) => i.reservePending);
+  const setRuleset = (p: Partial<Shop["ruleset"]>) =>
+    setShop({ ...shop, ruleset: { ...shop.ruleset, ...p } });
+  const pending = items.filter((i) => extras[i.tierId]?.reservePending);
+
+  const withDiscount = (it: Item, discountPercent: number): Partial<Item> => {
+    const price = BigInt(it.price);
+    const effectivePrice = (price * BigInt(200 - discountPercent)) / 200n;
+    return {
+      discountPercent,
+      effectivePrice: effectivePrice.toString(),
+      priceText: formatPrice(effectivePrice, shop.decimals, shop.currency),
+    };
+  };
+
   return (
     <div className="mx-auto max-w-3xl space-y-12 px-5 py-10">
       <section>
@@ -569,8 +625,8 @@ function Manage({
         <ul className="mt-6 divide-y divide-shelf-deep">
           {items.map((it) => (
             <li
-              key={it.id}
-              className={`grid grid-cols-[3rem_1fr_auto] items-center gap-4 py-3 ${it.removed ? "opacity-40" : ""}`}
+              key={it.tierId}
+              className="grid grid-cols-[3rem_1fr_auto] items-center gap-4 py-3"
             >
               <label className="cursor-pointer" title="Change image">
                 <input
@@ -579,33 +635,29 @@ function Manage({
                   className="sr-only"
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) {
-                      sign(`setMetadata(tier ${it.id}, ipfs://${f.name})`);
-                      patch(it.id, { hue: (it.hue + 120) % 360 });
-                    }
+                    if (f) sign(`setMetadata(tier ${it.tierId}, ipfs://${f.name})`);
                   }}
                 />
-                <Art hue={it.hue} className="rounded-sm" />
+                <Art hue={(it.tierId * 47) % 360} className="rounded-sm" />
               </label>
               <div className="min-w-0">
                 <p className="truncate text-sm">
-                  {it.name} <span className="text-mute">in {it.category}</span>
+                  {it.name} <span className="text-mute">in {it.categoryName}</span>
                 </p>
                 <p className="text-xs text-mute">
-                  <Price item={it} unit={shop.currency} />, <Availability item={it} />, sold{" "}
-                  {it.sold ?? 0}
+                  <Price item={it} />, <Availability item={it} />, sold {it.sold}
                 </p>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <label className="flex items-center gap-1 text-xs">
                   <input
                     inputMode="numeric"
-                    defaultValue={it.discount ?? 0}
+                    defaultValue={it.discountPercent / 2}
                     onBlur={(e) => {
                       const d = Math.min(100, Number(e.target.value) || 0);
-                      if (d !== (it.discount ?? 0)) {
-                        sign(`setDiscountPercentOf(tier ${it.id}, ${d * 2}/200)`);
-                        patch(it.id, { discount: d });
+                      if (d !== it.discountPercent / 2) {
+                        sign(`setDiscountPercentOf(tier ${it.tierId}, ${d * 2}/200)`);
+                        patch(it.tierId, withDiscount(it, d * 2));
                       }
                     }}
                     className="w-12 border-b border-shelf-deep bg-transparent text-right font-mono outline-none focus:border-accent"
@@ -613,32 +665,32 @@ function Manage({
                   />
                   % off
                 </label>
-                {it.ownerMint && !it.removed && (
+                {it.allowOwnerMint && (
                   <button
                     type="button"
                     className={ghost}
                     onClick={() => {
-                      sign(`mintFor([tier ${it.id}], friend.eth)`);
-                      patch(it.id, { left: it.left === undefined ? undefined : it.left - 1 });
+                      sign(`mintFor([tier ${it.tierId}], friend.eth)`);
+                      patch(it.tierId, {
+                        remaining: it.remaining === undefined ? undefined : it.remaining - 1,
+                      });
                     }}
                   >
                     Mint free
                   </button>
                 )}
-                {!it.removed && (
-                  <button
-                    type="button"
-                    className={ghost}
-                    disabled={it.permanent}
-                    title={it.permanent ? "Permanent items can't be removed" : ""}
-                    onClick={() => {
-                      sign(`adjustTiers(remove [${it.id}])`);
-                      patch(it.id, { removed: true });
-                    }}
-                  >
-                    Remove
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className={ghost}
+                  disabled={it.cantBeRemoved}
+                  title={it.cantBeRemoved ? "Permanent items can't be removed" : ""}
+                  onClick={() => {
+                    sign(`adjustTiers(remove [${it.tierId}])`);
+                    setItems((xs) => xs.filter((x) => x.tierId !== it.tierId));
+                  }}
+                >
+                  Remove
+                </button>
               </div>
             </li>
           ))}
@@ -651,43 +703,62 @@ function Manage({
           className="mt-6 space-y-8 rounded-md border border-shelf-deep p-5"
           onSubmit={(e) => {
             e.preventDefault();
-            const id = Math.max(...items.map((i) => i.id)) + 1;
-            sign(
-              `adjustTiers(add [tier ${id}: ${draft.name}, ${draft.price} ${shop.currency ?? "ETH"}])`,
-            );
+            const tierId = Math.max(0, ...items.map((i) => i.tierId)) + 1;
+            const price = BigInt(Math.round((Number(draft.price) || 0) * 10 ** shop.decimals));
+            const discountPercent = Math.min(100, Number(draft.discount) || 0) * 2;
+            const effectivePrice = (price * BigInt(200 - discountPercent)) / 200n;
+            const remaining = draft.limited ? Number(draft.limit) : undefined;
+            const reserveBeneficiary = draft.reserveTo.startsWith("0x")
+              ? (draft.reserveTo as Address)
+              : undefined;
+            sign(`adjustTiers(add [tier ${tierId}: ${draft.name}, ${draft.price} ${shop.currency}])`);
             setItems((xs) => [
               ...xs,
               {
-                id,
-                shop: shop.handle,
-                category: draft.category || "Basics",
+                shop: shop.slug,
+                tierId,
+                category: 0,
+                categoryName: draft.category || "Basics",
                 name: draft.name,
-                price: draft.price,
-                kind: draft.kind,
-                left: draft.limited ? Number(draft.limit) : undefined,
-                hue: (id * 47) % 360,
-                blurb: draft.description || undefined,
-                discount: Number(draft.discount) || undefined,
-                reserveEvery: Number(draft.reserveEvery) || undefined,
-                reserveTo: draft.reserveTo || undefined,
-                votes: Number(draft.votes) || undefined,
-                nonTransferable: draft.nonTransferable,
-                permanent: draft.permanent,
-                noCredits: !draft.credits,
-                ownerMint: draft.ownerMint,
-                splitPercent:
-                  draft.splits.reduce((s, x) => s + Number(x.percent || 0), 0) || undefined,
-                splitTo: draft.splits[0]?.to,
+                description: draft.description || undefined,
+                image: undefined,
+                price: price.toString(),
+                discountPercent,
+                effectivePrice: effectivePrice.toString(),
+                priceText: formatPrice(effectivePrice, shop.decimals, shop.currency),
+                fullPriceText: formatPrice(price, shop.decimals, shop.currency),
+                remaining,
+                initial: remaining ?? TIER_UNLIMITED_SUPPLY,
                 sold: 0,
+                reserveFrequency: Number(draft.reserveEvery) || 0,
+                reserveBeneficiary,
+                votingUnits: draft.votes || "0",
+                allowOwnerMint: draft.ownerMint,
+                transfersPausable: draft.nonTransferable,
+                cantBeRemoved: draft.permanent,
+                kind: draft.kind,
               },
             ]);
+            const splitPercent =
+              draft.splits.reduce((s, x) => s + (Number(x.percent) || 0), 0) || undefined;
+            if (splitPercent || !draft.credits) {
+              setExtras((ex) => ({
+                ...ex,
+                [tierId]: {
+                  splitPercent,
+                  splitTo: draft.splits[0]?.to,
+                  noCredits: !draft.credits,
+                },
+              }));
+            }
+            setCats([...new Set([...cats, draft.category || "Basics"])]);
             setDraft(blankItem());
           }}
         >
           <ItemFields
             item={draft}
             categories={cats}
-            currency={shop.currency ?? "ETH"}
+            currency={shop.currency}
             onChange={setDraft}
             onAddCategory={(c) => setCats([...new Set([...cats, c])])}
           />
@@ -700,14 +771,15 @@ function Manage({
         {pending.length ? (
           <ul className="mt-4 space-y-2 text-sm">
             {pending.map((it) => (
-              <li key={it.id} className="flex items-center justify-between gap-3">
+              <li key={it.tierId} className="flex items-center justify-between gap-3">
                 <span>
-                  {it.name}: {it.reservePending} pending for {it.reserveTo}
+                  {it.name}: {extras[it.tierId]?.reservePending} pending for{" "}
+                  {it.reserveBeneficiary}
                 </span>
                 <button
                   type="button"
                   className={ghost}
-                  disabled={shop.reservesPaused}
+                  disabled={shop.ruleset.pauseMintPendingReserves}
                   onClick={() => mintReserves(it)}
                 >
                   Mint now
@@ -789,27 +861,27 @@ function Manage({
           <Check
             label="Pause transfers"
             hint="Only affects items marked non-transferable."
-            checked={!!shop.transfersPaused}
+            checked={shop.ruleset.pauseTransfers}
             onChange={(v) => {
               sign(`queueRulesetsOf(pauseTransfers=${v})`);
-              setS({ transfersPaused: v });
+              setRuleset({ pauseTransfers: v });
             }}
           />
           <Check
             label="Pause reserve minting"
-            checked={!!shop.reservesPaused}
+            checked={shop.ruleset.pauseMintPendingReserves}
             onChange={(v) => {
               sign(`queueRulesetsOf(pauseMintPendingReserves=${v})`);
-              setS({ reservesPaused: v });
+              setRuleset({ pauseMintPendingReserves: v });
             }}
           />
           <Check
             label="Items can cash out for surplus"
-            hint={`Holders can burn an item for its share of the ${shop.surplus ?? "0"} ETH the shop holds.`}
-            checked={!!shop.cashOut}
+            hint={`Holders can burn an item for its share of the ${shop.surplus ?? "0"} ${shop.currency} the shop holds.`}
+            checked={shop.ruleset.cashOut}
             onChange={(v) => {
               sign(`queueRulesetsOf(useDataHookForCashOut=${v})`);
-              setS({ cashOut: v });
+              setRuleset({ cashOut: v });
             }}
           />
         </div>
@@ -818,7 +890,7 @@ function Manage({
       <section>
         <h2 className="display text-2xl font-extrabold">Who else can run the shop</h2>
         <ul className="mt-4 space-y-2 text-sm">
-          {(shop.operators ?? []).map((op) => (
+          {operators.map((op) => (
             <li key={op.address} className="flex items-center justify-between gap-3">
               <span>
                 <span className="font-mono">{op.address}</span>{" "}
@@ -829,7 +901,7 @@ function Manage({
                 className={ghost}
                 onClick={() => {
                   sign(`setPermissionsFor(${op.address}, [])`);
-                  setS({ operators: shop.operators!.filter((o) => o !== op) });
+                  setOperators((ops) => ops.filter((o) => o !== op));
                 }}
               >
                 Revoke
@@ -845,15 +917,13 @@ function Manage({
             sign(
               `setPermissionsFor(${newOp}, [ADJUST_721_TIERS, SET_721_METADATA, MINT_721, SET_721_DISCOUNT_PERCENT])`,
             );
-            setS({
-              operators: [
-                ...(shop.operators ?? []),
-                {
-                  address: newOp,
-                  can: ["Add & remove items", "Update item details", "Mint free", "Set discounts"],
-                },
-              ],
-            });
+            setOperators((ops) => [
+              ...ops,
+              {
+                address: newOp,
+                can: ["Add & remove items", "Update item details", "Mint free", "Set discounts"],
+              },
+            ]);
             setNewOp("");
           }}
         >

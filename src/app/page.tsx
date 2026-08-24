@@ -1,10 +1,13 @@
 import { HandleHero } from "@/components/HandleHero";
 import { Header } from "@/components/Header";
 import { ItemCard } from "@/components/ItemCard";
-import { items } from "@/lib/fixtures";
+import { demoItems } from "@/lib/fixtures";
 
 export default function Home() {
-  const feed = [...items].sort((a, b) => ((a.id * 7919) % 97) - ((b.id * 7919) % 97));
+  // ponytail: temporary — Task 8 replaces this with the on-chain feed.
+  const feed = [...demoItems].sort(
+    (a, b) => ((a.tierId * 7919) % 97) - ((b.tierId * 7919) % 97),
+  );
   return (
     <>
       <Header />
@@ -14,7 +17,7 @@ export default function Home() {
       </section>
       <section className="grid grid-cols-2 gap-x-5 gap-y-10 px-5 py-6 pb-20 sm:grid-cols-3 lg:grid-cols-5">
         {feed.map((item) => (
-          <ItemCard key={item.id} item={item} showShop />
+          <ItemCard key={item.tierId} item={item} showShop />
         ))}
       </section>
       <section className="grid gap-10 border-t border-shelf-deep bg-shelf px-5 py-14 sm:grid-cols-3">

@@ -1,356 +1,203 @@
 // ponytail: fixtures stand in for 721 tiers + project metadata until chain reads are wired.
-export type Kind = "digital" | "physical";
-export type Item = {
-  id: number;
-  shop: string;
-  category: string;
+import { TIER_UNLIMITED_SUPPLY } from "@bananapus/nana-sdk-core/v6";
+import type { Address } from "viem";
+import { formatPrice } from "./items";
+import type { Item, Shop } from "./types";
+
+const ZERO: Address = "0x0000000000000000000000000000000000000000";
+const STUDIO: Address = "0x000000000000000000000000000000000005ad";
+
+export const demoShop: Shop = {
+  chainId: 8453,
+  projectId: 0,
+  slug: "demo",
+  handle: "demo",
+  name: "Everything Shop",
+  tagline: "One of each thing the 721 hook can do.",
+  about:
+    "A demo shop. Every card here exercises a different feature: categories, discounts, reserves, votes, splits, credits, sold-out, non-transferable, and owner-only mints. Open Manage to see the other side of the counter.",
+  hook: ZERO,
+  store: ZERO,
+  idTarget: ZERO,
+  symbol: "DEMO",
+  currency: "ETH",
+  decimals: 18,
+  flags: { preventOverspending: false, issueTokensForSplits: false },
+  ruleset: { pauseTransfers: false, pauseMintPendingReserves: false, cashOut: true },
+  owner: ZERO,
+  surplus: "1.24",
+};
+
+const wei = (eth: number) => BigInt(Math.round(eth * 1e18));
+
+function item(opts: {
+  tierId: number;
+  category: number;
+  categoryName: string;
   name: string;
-  price: string; // ETH
-  kind: Kind;
-  left?: number; // remaining supply; undefined = unlimited
-  hue: number;
-  blurb?: string;
-  // 721 tier surface beyond the basics; all optional, default = off.
-  discount?: number; // % off, 0-100 (encodes ×2, denominator 200)
-  reserveEvery?: number; // 1 of every N sold is reserved
-  reservePending?: number; // reserved NFTs not yet minted
-  reserveTo?: string;
-  votes?: number;
-  nonTransferable?: boolean;
-  permanent?: boolean;
-  noCredits?: boolean; // cantBuyWithCredits
-  ownerMint?: boolean;
-  splitPercent?: number;
-  splitTo?: string;
+  description: string;
+  priceEth?: number;
+  discount?: number; // 0-100; stored as discountPercent out of 200
+  remaining?: number; // undefined = unlimited
   sold?: number;
-  removed?: boolean;
+  reserveFrequency?: number;
+  reserveBeneficiary?: Address;
+  votingUnits?: string;
+  allowOwnerMint?: boolean;
+  transfersPausable?: boolean;
+  cantBeRemoved?: boolean;
+  kind?: "digital" | "physical";
+}): Item {
+  const price = wei(opts.priceEth ?? 0.01);
+  const discountPercent = (opts.discount ?? 0) * 2;
+  const effectivePrice = (price * BigInt(200 - discountPercent)) / 200n;
+  const remaining = opts.remaining;
+  const sold = opts.sold ?? 0;
+  return {
+    shop: "demo",
+    tierId: opts.tierId,
+    category: opts.category,
+    categoryName: opts.categoryName,
+    name: opts.name,
+    description: opts.description,
+    image: undefined,
+    price: price.toString(),
+    discountPercent,
+    effectivePrice: effectivePrice.toString(),
+    priceText: formatPrice(effectivePrice, demoShop.decimals, demoShop.currency),
+    fullPriceText: formatPrice(price, demoShop.decimals, demoShop.currency),
+    remaining,
+    initial: remaining === undefined ? TIER_UNLIMITED_SUPPLY : remaining + sold,
+    sold,
+    reserveFrequency: opts.reserveFrequency ?? 0,
+    reserveBeneficiary: opts.reserveBeneficiary,
+    votingUnits: opts.votingUnits ?? "0",
+    allowOwnerMint: opts.allowOwnerMint ?? false,
+    transfersPausable: opts.transfersPausable ?? false,
+    cantBeRemoved: opts.cantBeRemoved ?? false,
+    kind: opts.kind ?? "digital",
+  };
+}
+
+export const demoItems: Item[] = [
+  item({
+    tierId: 100,
+    category: 1,
+    categoryName: "Basics",
+    name: "Plain digital item",
+    description: "Unlimited supply, no rules. The simplest thing you can sell.",
+  }),
+  item({
+    tierId: 101,
+    category: 1,
+    categoryName: "Basics",
+    name: "Physical, 20 left",
+    description: "Ships after purchase. Shipping details go through private chat.",
+    kind: "physical",
+    remaining: 20,
+    sold: 5,
+  }),
+  item({
+    tierId: 102,
+    category: 1,
+    categoryName: "Basics",
+    name: "Sold out",
+    description: "Supply exhausted. Card stays so people know it existed.",
+    remaining: 0,
+    sold: 50,
+  }),
+  item({
+    tierId: 103,
+    category: 2,
+    categoryName: "Pricing",
+    name: "25% off right now",
+    description:
+      "Discount is the ONE price knob that can change after launch. Cash-out weight still counts the full price.",
+    priceEth: 0.02,
+    discount: 25,
+  }),
+  item({
+    tierId: 104,
+    category: 2,
+    categoryName: "Pricing",
+    name: "Free (100% off)",
+    description: "Discounted to zero. Still dilutes surplus at full price.",
+    priceEth: 0.05,
+    discount: 100,
+  }),
+  item({
+    tierId: 105,
+    category: 3,
+    categoryName: "Rules",
+    name: "Reserved: 1 in 5 to the studio",
+    description:
+      "For every 5 sold, one is set aside. Anyone can mint the pending ones to the beneficiary.",
+    priceEth: 0.008,
+    remaining: 40,
+    sold: 12,
+    reserveFrequency: 5,
+    reserveBeneficiary: STUDIO,
+  }),
+  item({
+    tierId: 106,
+    category: 3,
+    categoryName: "Rules",
+    name: "Non-transferable ticket",
+    description: "Can't be resold or sent while the shop's transfer pause is on. Show it at the door.",
+    priceEth: 0.03,
+    remaining: 100,
+    sold: 41,
+    transfersPausable: true,
+  }),
+  item({
+    tierId: 107,
+    category: 3,
+    categoryName: "Rules",
+    name: "Permanent item",
+    description: "Can never be removed from the shop.",
+    cantBeRemoved: true,
+  }),
+  item({
+    tierId: 108,
+    category: 3,
+    categoryName: "Rules",
+    name: "No credit purchases",
+    description: "Must be paid for with fresh funds; leftover credit can't cover it.",
+    priceEth: 0.015,
+  }),
+  item({
+    tierId: 109,
+    category: 3,
+    categoryName: "Rules",
+    name: "Owner can mint free",
+    description: "The shop owner (or an operator with the mint permission) can hand these out.",
+    remaining: 10,
+    allowOwnerMint: true,
+  }),
+  item({
+    tierId: 110,
+    category: 4,
+    categoryName: "Governance",
+    name: "10 votes each",
+    description: "Each one carries 10 votes in the project. Holders delegate from their account.",
+    priceEth: 0.05,
+    votingUnits: "10",
+  }),
+  item({
+    tierId: 111,
+    category: 5,
+    categoryName: "Splits",
+    name: "30% to a collaborator",
+    description: "30% of every sale routes to collab.eth at mint time. The rest stays in the shop.",
+    priceEth: 0.04,
+  }),
+];
+
+export const demoExtras: Record<
+  number,
+  { reservePending?: number; noCredits?: boolean; splitPercent?: number; splitTo?: string }
+> = {
+  105: { reservePending: 2 },
+  108: { noCredits: true },
+  111: { splitPercent: 30, splitTo: "collab.eth" },
 };
-export type Shop = {
-  handle: string;
-  name: string;
-  tagline: string;
-  about: string;
-  hue: number;
-  chain: string;
-  projectId: number;
-  // hook + ruleset level
-  currency?: "ETH" | "USD";
-  symbol?: string;
-  cashOut?: boolean; // items can cash out for surplus
-  transfersPaused?: boolean;
-  reservesPaused?: boolean;
-  issueTokensForSplits?: boolean;
-  preventOverspending?: boolean;
-  surplus?: string; // ETH held by the project
-  operators?: { address: string; can: string[] }[];
-};
-
-export const shops: Shop[] = [
-  {
-    handle: "tea",
-    name: "Small Hours Tea",
-    tagline: "Three teas. That's the whole shop.",
-    about:
-      "Roasted in a garage in Oakland. Ships in a paper pouch, or grab the tasting notes as a PDF.",
-    hue: 92,
-    chain: "base",
-    projectId: 41,
-  },
-  {
-    handle: "press",
-    name: "Left Margin Press",
-    tagline: "Zines, prints, type, and the odd t-shirt.",
-    about:
-      "A risograph studio that sells what it prints. Editions are numbered on-chain because the printer only counts to 300.",
-    hue: 340,
-    chain: "eth",
-    projectId: 12,
-  },
-  {
-    handle: "loops",
-    name: "Loops by Ada",
-    tagline: "Sample packs and stems.",
-    about: "Every pack is an NFT you can resell. Buyers get the download link in their receipt.",
-    hue: 210,
-    chain: "op",
-    projectId: 7,
-  },
-  {
-    handle: "demo",
-    name: "Everything Shop",
-    tagline: "One of each thing the 721 hook can do.",
-    about:
-      "A demo shop. Every card here exercises a different feature: categories, discounts, reserves, votes, splits, credits, sold-out, non-transferable, and owner-only mints. Open Manage to see the other side of the counter.",
-    hue: 250,
-    chain: "base",
-    projectId: 999,
-    symbol: "DEMO",
-    cashOut: true,
-    surplus: "1.24",
-    operators: [{ address: "ada.eth", can: ["Add & remove items", "Update item details"] }],
-  },
-  {
-    handle: "salt",
-    name: "Salt Ceramics",
-    tagline: "Mugs, one kiln at a time.",
-    about: "Each firing is a category. When it's gone, it's gone.",
-    hue: 28,
-    chain: "base",
-    projectId: 88,
-  },
-];
-
-const mk = (
-  shop: string,
-  category: string,
-  rows: [string, string, Kind, number?, string?][],
-  hue: number,
-  start: number,
-): Item[] =>
-  rows.map(([name, price, kind, left, blurb], i) => ({
-    id: start + i,
-    shop,
-    category,
-    name,
-    price,
-    kind,
-    left,
-    hue: (hue + i * 17) % 360,
-    blurb,
-  }));
-
-export const items: Item[] = [
-  ...mk(
-    "tea",
-    "Teas",
-    [
-      [
-        "Hojicha, 50g",
-        "0.004",
-        "physical",
-        40,
-        "Roasted green tea. Toasty, low caffeine, good at 11pm.",
-      ],
-      ["Jin Xuan oolong, 50g", "0.006", "physical", 12, "Milky, floral. Three steeps minimum."],
-      [
-        "Tasting notes (PDF)",
-        "0.0005",
-        "digital",
-        undefined,
-        "Nine pages on how we brew each tea. Yours forever.",
-      ],
-    ],
-    92,
-    1,
-  ),
-  ...mk(
-    "press",
-    "Zines",
-    [
-      ["Margin Notes #1", "0.002", "physical", 120],
-      ["Margin Notes #2", "0.002", "physical", 96],
-      ["Margin Notes #3", "0.002", "physical", 300],
-      ["Margin Notes #1–3 (PDF bundle)", "0.001", "digital"],
-      ["Riso Mistakes, vol. 1", "0.003", "physical", 44],
-      ["Riso Mistakes, vol. 2", "0.003", "physical", 61],
-    ],
-    340,
-    10,
-  ),
-  ...mk(
-    "press",
-    "Prints",
-    [
-      ["Two-colour cityscape, A3", "0.012", "physical", 30],
-      ["Fluorescent pink grid, A2", "0.02", "physical", 15],
-      ["Bridge study, A4", "0.008", "physical", 50],
-      ["Bridge study (print-at-home)", "0.002", "digital"],
-      ["Test sheet, one of one", "0.05", "physical", 1],
-      ["Blue ladder, A3", "0.012", "physical", 22],
-      ["Sunday paper, A2", "0.02", "physical", 9],
-    ],
-    300,
-    20,
-  ),
-  ...mk(
-    "press",
-    "Type",
-    [
-      ["Margin Grotesk (desktop)", "0.015", "digital"],
-      ["Margin Grotesk (web)", "0.015", "digital"],
-      ["Margin Mono", "0.01", "digital"],
-      ["Full family licence", "0.03", "digital"],
-      ["Specimen booklet", "0.004", "physical", 200],
-    ],
-    260,
-    30,
-  ),
-  ...mk(
-    "press",
-    "Shirts",
-    [
-      ["Margin tee, S", "0.01", "physical", 8],
-      ["Margin tee, M", "0.01", "physical", 14],
-      ["Margin tee, L", "0.01", "physical", 11],
-      ["Margin tee, XL", "0.01", "physical", 5],
-      ["Tote, natural", "0.006", "physical", 40],
-    ],
-    20,
-    40,
-  ),
-  ...mk(
-    "press",
-    "Workshops",
-    [
-      [
-        "Riso 101, Saturday",
-        "0.03",
-        "digital",
-        6,
-        "Two hours in the studio. Ticket is the NFT; show it at the door.",
-      ],
-      ["Riso 101, recording", "0.005", "digital"],
-      ["Studio day pass", "0.02", "digital", 3],
-    ],
-    180,
-    50,
-  ),
-  ...mk(
-    "loops",
-    "Packs",
-    [
-      ["Night Bus, 40 loops", "0.008", "digital"],
-      ["Dry Kit, drums", "0.005", "digital"],
-      ["Room Tone, textures", "0.004", "digital"],
-      ["Everything so far", "0.02", "digital"],
-    ],
-    210,
-    60,
-  ),
-  ...mk(
-    "salt",
-    "Kiln 14",
-    [
-      ["Speckled mug", "0.009", "physical", 6],
-      ["Tall mug", "0.011", "physical", 2],
-      ["Plate, 24cm", "0.014", "physical", 4],
-      ["Seconds mug", "0.005", "physical", 9],
-    ],
-    28,
-    70,
-  ),
-];
-
-const demo = (rows: Partial<Item>[]): Item[] =>
-  rows.map(
-    (r, i) =>
-      ({
-        id: 100 + i,
-        shop: "demo",
-        category: "Basics",
-        name: "",
-        price: "0.01",
-        kind: "digital",
-        hue: (250 + i * 23) % 360,
-        ...r,
-      }) as Item,
-  );
-
-items.push(
-  ...demo([
-    {
-      name: "Plain digital item",
-      blurb: "Unlimited supply, no rules. The simplest thing you can sell.",
-    },
-    {
-      name: "Physical, 20 left",
-      kind: "physical",
-      left: 20,
-      sold: 5,
-      blurb: "Ships after purchase. Shipping details go through private chat.",
-    },
-    {
-      name: "Sold out",
-      left: 0,
-      sold: 50,
-      blurb: "Supply exhausted. Card stays so people know it existed.",
-    },
-    {
-      name: "25% off right now",
-      price: "0.02",
-      discount: 25,
-      category: "Pricing",
-      blurb:
-        "Discount is the ONE price knob that can change after launch. Cash-out weight still counts the full price.",
-    },
-    {
-      name: "Free (100% off)",
-      price: "0.05",
-      discount: 100,
-      category: "Pricing",
-      blurb: "Discounted to zero. Still dilutes surplus at full price.",
-    },
-    {
-      name: "Reserved: 1 in 5 to the studio",
-      price: "0.008",
-      left: 40,
-      sold: 12,
-      reserveEvery: 5,
-      reservePending: 2,
-      reserveTo: "studio.eth",
-      category: "Rules",
-      blurb:
-        "For every 5 sold, one is set aside. Anyone can mint the pending ones to the beneficiary.",
-    },
-    {
-      name: "Non-transferable ticket",
-      price: "0.03",
-      left: 100,
-      sold: 41,
-      nonTransferable: true,
-      category: "Rules",
-      blurb: "Can't be resold or sent while the shop's transfer pause is on. Show it at the door.",
-    },
-    {
-      name: "Permanent item",
-      permanent: true,
-      category: "Rules",
-      blurb: "Can never be removed from the shop.",
-    },
-    {
-      name: "No credit purchases",
-      price: "0.015",
-      noCredits: true,
-      category: "Rules",
-      blurb: "Must be paid for with fresh funds; leftover credit can't cover it.",
-    },
-    {
-      name: "Owner can mint free",
-      left: 10,
-      ownerMint: true,
-      category: "Rules",
-      blurb: "The shop owner (or an operator with the mint permission) can hand these out.",
-    },
-    {
-      name: "10 votes each",
-      price: "0.05",
-      votes: 10,
-      category: "Governance",
-      blurb: "Each one carries 10 votes in the project. Holders delegate from their account.",
-    },
-    {
-      name: "30% to a collaborator",
-      price: "0.04",
-      splitPercent: 30,
-      splitTo: "collab.eth",
-      category: "Splits",
-      blurb: "30% of every sale routes to collab.eth at mint time. The rest stays in the shop.",
-    },
-  ]),
-);
-
-export const shopBy = (handle: string) => shops.find((s) => s.handle === handle);
-export const itemsOf = (handle: string) => items.filter((i) => i.shop === handle);
-export const categoriesOf = (handle: string) => [
-  ...new Set(itemsOf(handle).map((i) => i.category)),
-];

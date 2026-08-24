@@ -5,12 +5,24 @@ import { Art } from "./ItemCard";
 import { CHAINS, blankItem, blankShop, type ItemDraft, type ShopDraft } from "./sell/draft";
 import { ItemFields } from "./sell/ItemFields";
 import { Check, Field, More, Pills, field } from "./sell/ui";
+import { formatPrice } from "@/lib/items";
+import type { Currency } from "@/lib/types";
+import { parseUnits } from "viem";
 
 const clean = (s: string) =>
   s
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, "")
     .slice(0, 32);
+
+// Preview only — the draft's price is a decimal string typed by the seller, not raw units yet.
+const previewPrice = (price: string, currency: Currency) => {
+  try {
+    return formatPrice(parseUnits(price || "0", 18), 18, currency);
+  } catch {
+    return `${price || "0"} ${currency}`;
+  }
+};
 
 const primary = "rounded-full bg-ink px-6 py-3 text-paper hover:bg-accent";
 const secondary = "rounded-full border border-ink px-5 py-3 hover:bg-shelf";
@@ -287,7 +299,7 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
                           <div className="tag mt-3 flex items-baseline justify-between pt-2">
                             <span className="font-sans text-sm">{it.name || "Item"}</span>
                             <span className="text-lg font-semibold">
-                              {it.price || "0"} {shop.currency}
+                              {previewPrice(it.price, shop.currency)}
                             </span>
                           </div>
                           <p className="mt-1 text-xs text-mute">

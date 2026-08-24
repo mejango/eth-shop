@@ -16,10 +16,12 @@
     "format:write": "prettier --write \"**/*.{js,jsx,mjs,ts,tsx,json,css}\""
   },
   "dependencies": {
+    "@bananapus/nana-sdk-core": "^2.3.2",
     "next": "16.2.11",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "viem": "^2.55.8"
   },
   "devDependencies": {
     "@eslint/compat": "^2.1.0",

@@ -22,15 +22,27 @@ export function chainName(chainId: JBChainId): string {
   return JB_CHAINS[chainId].chain.name;
 }
 
-/** `NEXT_PUBLIC_RPC_<chainId>`: comma-separated HTTPS endpoints. Falls back to the chain's public RPC. */
-export function rpcUrlsFor(chainId: JBChainId): string[] {
+/** The explicit `NEXT_PUBLIC_RPC_<chainId>` override, parsed, with no fallback applied. */
+function parsedRpcOverride(chainId: JBChainId): string[] {
   const raw = process.env[`NEXT_PUBLIC_RPC_${chainId}`]?.trim();
-  const urls = raw ? raw.split(",").map((u) => u.trim()).filter(Boolean) : [];
+  return raw ? raw.split(",").map((u) => u.trim()).filter(Boolean) : [];
+}
+
+/**
+ * `NEXT_PUBLIC_RPC_<chainId>`: comma-separated HTTPS endpoints. This is an operator
+ * override only — the default RPC path is juicebox.center (see `transportFor` below).
+ * Falls back to the chain's public RPC list if the override is unset or malformed.
+ */
+export function rpcUrlsFor(chainId: JBChainId): string[] {
+  const urls = parsedRpcOverride(chainId);
   return urls.length ? urls : [...JB_CHAINS[chainId].chain.rpcUrls.default.http];
 }
 
+// Only a genuine, non-empty override should divert away from juicebox.center: an env
+// value like "," parses to zero URLs, and rpcUrlsFor's own fallback to the chain's
+// public RPC would otherwise silently mask that as "override present".
 function hasRpcOverride(chainId: JBChainId): boolean {
-  return Boolean(process.env[`NEXT_PUBLIC_RPC_${chainId}`]?.trim());
+  return parsedRpcOverride(chainId).length > 0;
 }
 
 /** juicebox.center by default; an operator-set `NEXT_PUBLIC_RPC_<chainId>` overrides it. */
@@ -54,4 +66,9 @@ export function publicClientFor(chainId: JBChainId): PublicClient {
     clients.set(chainId, client);
   }
   return client;
+}
+
+/** Test-only: clears the memoized client cache so a changed env override takes effect. */
+export function resetPublicClients(): void {
+  clients.clear();
 }

@@ -1,5 +1,5 @@
 import "server-only";
-import { getJBContractAddress, JBCoreContracts, type JBChainId } from "@bananapus/nana-sdk-core";
+import { getJBContractAddress, isContractRevertError, JBCoreContracts, type JBChainId } from "@bananapus/nana-sdk-core";
 import type { Address } from "viem";
 import { normalize } from "viem/ens";
 import { isSupportedChain, publicClientFor } from "./chains";
@@ -54,38 +54,49 @@ export async function projectOwner(chainId: JBChainId, projectId: bigint): Promi
   });
 }
 
-/** The handle the project OWNER published for this project, or null. */
+/**
+ * The handle the project OWNER published for this project, or null if the project
+ * has no owner (never minted — `ownerOf` reverts) or has no published handle.
+ * Transport/RPC errors are NOT swallowed here: they propagate so the caller's error
+ * boundary shows, instead of masquerading as "no handle".
+ */
 export async function handleFor(chainId: JBChainId, projectId: bigint): Promise<string | null> {
-  try {
-    const owner = await projectOwner(chainId, projectId);
-    const name = await publicClientFor(HANDLE_CHAIN).readContract({
-      address: JB_PROJECT_HANDLES,
-      abi: handlesAbi,
-      functionName: "handleOf",
-      args: [BigInt(chainId), projectId, owner],
-    });
-    return name ? handleForEnsName(name) : null;
-  } catch {
-    return null;
-  }
+  const owner = await projectOwner(chainId, projectId).catch((error: unknown) => {
+    // ownerOf() reverts for a project that was never minted — a legitimate "no
+    // handle" signal, not a transport failure. Only swallow the on-chain revert;
+    // anything else (RPC down, wrong chain, timeout) must propagate.
+    if (isContractRevertError(error)) return null;
+    throw error;
+  });
+  if (owner === null) return null;
+  const name = await publicClientFor(HANDLE_CHAIN).readContract({
+    address: JB_PROJECT_HANDLES,
+    abi: handlesAbi,
+    functionName: "handleOf",
+    args: [BigInt(chainId), projectId, owner],
+  });
+  return name ? handleForEnsName(name) : null;
 }
 
-/** ENS name → project, accepted only if the project owner published the same name back. */
+/**
+ * ENS name → project, accepted only if the project owner published the same name
+ * back. Returns null only for a genuinely missing/malformed record: an invalid ENS
+ * name, no text record, an unparsable record, an unsupported chain, or a
+ * publisher/handle mismatch. Transport/RPC errors from `getEnsText` or `handleFor`
+ * are NOT swallowed: they propagate so the caller's error boundary shows, instead of
+ * a live RPC outage silently rendering as "no shop here".
+ */
 export async function resolveHandle(handle: string): Promise<{ chainId: JBChainId; projectId: bigint } | null> {
   let name: string;
   try {
     name = normalize(ensNameForHandle(handle));
   } catch {
-    return null;
+    return null; // not a valid ENS name
   }
-  try {
-    const text = await publicClientFor(HANDLE_CHAIN).getEnsText({ name, key: TEXT_KEY });
-    const record = parseHandleRecord(text);
-    if (!record || !isSupportedChain(record.chainId)) return null;
-    const published = await handleFor(record.chainId, record.projectId);
-    if (published !== handleForEnsName(name)) return null;
-    return { chainId: record.chainId, projectId: record.projectId };
-  } catch {
-    return null; // ENS, resolver or RPC down: fail closed; the caller shows "No shop here yet"
-  }
+  const text = await publicClientFor(HANDLE_CHAIN).getEnsText({ name, key: TEXT_KEY });
+  const record = parseHandleRecord(text);
+  if (!record || !isSupportedChain(record.chainId)) return null;
+  const published = await handleFor(record.chainId, record.projectId);
+  if (published !== handleForEnsName(name)) return null;
+  return { chainId: record.chainId, projectId: record.projectId };
 }

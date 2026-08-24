@@ -6,13 +6,18 @@ import { ItemCard } from "./ItemCard";
 export function LoadMore({ initial }: { initial: Feed }) {
   const [feed, setFeed] = useState(initial);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
   const more = async () => {
     if (!feed.next || busy) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/feed?after=${encodeURIComponent(feed.next)}`);
+      if (!res.ok) throw new Error("feed fetch failed");
       const page = (await res.json()) as Feed;
       setFeed({ items: [...feed.items, ...page.items], next: page.next });
+      setError(false);
+    } catch {
+      setError(true);
     } finally {
       setBusy(false);
     }
@@ -34,6 +39,7 @@ export function LoadMore({ initial }: { initial: Feed }) {
           >
             {busy ? "Loading" : "Show more"}
           </button>
+          {error && <p className="mt-2 text-sm text-mute">Couldn&apos;t load more. Try again.</p>}
         </div>
       )}
     </>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isFeedWorthy, orderFeedRows, usableFeedRows } from "@/lib/feed";
+import { isFeedWorthy, isValidCursor, orderFeedRows, usableFeedRows } from "@/lib/feed";
 
 describe("orderFeedRows", () => {
   it("newest first, drops empty tiers", () => {
@@ -42,5 +42,31 @@ describe("isFeedWorthy", () => {
 
   it("is true with both", () => {
     expect(isFeedWorthy({ name: "Rhoads", image: "https://juicebox.center/ipfs/x" })).toBe(true);
+  });
+});
+
+describe("isValidCursor", () => {
+  it("accepts null (first page)", () => {
+    expect(isValidCursor(null)).toBe(true);
+  });
+
+  it("accepts a normal cursor string", () => {
+    expect(isValidCursor("eyJqc29uIjp7ImNyZWF0ZWRBdCI6MTB9fQ==")).toBe(true);
+  });
+
+  it("rejects an empty string", () => {
+    expect(isValidCursor("")).toBe(false);
+  });
+
+  it("rejects a cursor over 512 chars", () => {
+    expect(isValidCursor("a".repeat(513))).toBe(false);
+  });
+
+  it("accepts a cursor at exactly 512 chars", () => {
+    expect(isValidCursor("a".repeat(512))).toBe(true);
+  });
+
+  it("rejects a cursor containing a control character", () => {
+    expect(isValidCursor("\u0000bad")).toBe(false);
   });
 });

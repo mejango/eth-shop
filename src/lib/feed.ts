@@ -43,6 +43,18 @@ export function isFeedWorthy(meta: { name?: string; image?: string } | undefined
   return !!meta?.name || !!meta?.image;
 }
 
+const CURSOR_MAX_LEN = 512;
+const CURSOR_CONTROL_CHARS = /[\x00-\x1f\x7f]/;
+
+// A cursor comes straight off the query string into a Bendystraw request; validate it
+// before it ever reaches `readFeed` so a malformed value 400s instead of surfacing as a
+// confusing upstream failure.
+export function isValidCursor(after: string | null): boolean {
+  if (after === null) return true;
+  if (after.length === 0 || after.length > CURSOR_MAX_LEN) return false;
+  return !CURSOR_CONTROL_CHARS.test(after);
+}
+
 // A half-indexed row (chain not yet supported by this app, or hook not yet
 // backfilled by Bendystraw) shouldn't fail the whole feed — drop just that card.
 export function usableFeedRows<T extends { chainId: number; hook: unknown }>(

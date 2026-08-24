@@ -20,6 +20,7 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
     name: "",
     price: "",
     kind: "digital" as "digital" | "physical",
+    limited: false,
     limit: "",
   });
   const steps = ["Your shop", "First item", "Open"];
@@ -114,17 +115,26 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
               />
             </div>
             <div>
-              <label className="text-sm text-mute" htmlFor="limit">
-                How many? (blank = unlimited)
+              <label className="flex items-center gap-2 py-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={item.limited}
+                  onChange={(e) => setItem({ ...item, limited: e.target.checked })}
+                  className="h-4 w-4 accent-accent"
+                />
+                Limited quantity?
               </label>
-              <input
-                id="limit"
-                inputMode="numeric"
-                value={item.limit}
-                onChange={(e) => setItem({ ...item, limit: e.target.value })}
-                className={`${field} font-mono`}
-                placeholder="40"
-              />
+              {item.limited && (
+                <input
+                  aria-label="How many"
+                  required
+                  inputMode="numeric"
+                  value={item.limit}
+                  onChange={(e) => setItem({ ...item, limit: e.target.value })}
+                  className={`${field} font-mono`}
+                  placeholder="40"
+                />
+              )}
             </div>
           </div>
           <fieldset className="flex gap-3">
@@ -178,7 +188,7 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
                 <span className="text-lg font-semibold">{item.price || "0"} ETH</span>
               </div>
               <p className="mt-1 text-xs text-mute">
-                {item.kind} · {item.limit ? `${item.limit} left` : "unlimited"}
+                {item.kind} · {item.limited && item.limit ? `${item.limit} left` : "unlimited"}
               </p>
             </div>
           </div>

@@ -2,18 +2,28 @@
 import Link from "next/link";
 import { useState } from "react";
 
+export const SLOGANS = [
+  "Sell anything.",
+  "Your shop is a link.",
+  "Put a price on it.",
+  "One link. Anything for sale.",
+  "Sell anything, to anyone, from a link you own.",
+];
+
 const clean = (s: string) =>
   s
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, "")
     .slice(0, 32);
 
-export function HandleHero() {
+export function HandleHero({ slogan = 0 }: { slogan?: number }) {
   const [handle, setHandle] = useState("");
   const h = clean(handle);
   return (
     <section className="px-5 pt-14 pb-16">
-      <h1 className="display text-5xl font-extrabold leading-none sm:text-8xl">Sell anything.</h1>
+      <h1 className="display max-w-5xl text-5xl font-extrabold leading-none sm:text-8xl">
+        {SLOGANS[slogan]}
+      </h1>
       <label className="mt-8 flex max-w-2xl flex-wrap items-baseline gap-x-1 font-mono text-3xl sm:text-5xl">
         <span className="text-mute">eth.shop/</span>
         <input

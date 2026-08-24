@@ -1,5 +1,6 @@
+import { jbCenterRpcTransport } from "@/lib/jbcenter-rpc";
 import { JB_CHAIN_SLUGS, JB_CHAINS, type JBChainId } from "@bananapus/nana-sdk-core";
-import { createPublicClient, fallback, http, type PublicClient } from "viem";
+import { createPublicClient, fallback, http, type PublicClient, type Transport } from "viem";
 
 const MAINNETS = [1, 8453, 10, 42161] as const satisfies readonly JBChainId[];
 const TESTNETS = [11155111, 84532, 11155420, 421614] as const satisfies readonly JBChainId[];
@@ -28,6 +29,18 @@ export function rpcUrlsFor(chainId: JBChainId): string[] {
   return urls.length ? urls : [...JB_CHAINS[chainId].chain.rpcUrls.default.http];
 }
 
+function hasRpcOverride(chainId: JBChainId): boolean {
+  return Boolean(process.env[`NEXT_PUBLIC_RPC_${chainId}`]?.trim());
+}
+
+/** juicebox.center by default; an operator-set `NEXT_PUBLIC_RPC_<chainId>` overrides it. */
+function transportFor(chainId: JBChainId): Transport {
+  if (hasRpcOverride(chainId)) {
+    return fallback(rpcUrlsFor(chainId).map((u) => http(u, { batch: true })));
+  }
+  return jbCenterRpcTransport(chainId);
+}
+
 const clients = new Map<number, PublicClient>();
 
 export function publicClientFor(chainId: JBChainId): PublicClient {
@@ -35,7 +48,7 @@ export function publicClientFor(chainId: JBChainId): PublicClient {
   if (!client) {
     client = createPublicClient({
       chain: JB_CHAINS[chainId].chain,
-      transport: fallback(rpcUrlsFor(chainId).map((u) => http(u, { batch: true }))),
+      transport: transportFor(chainId),
       batch: { multicall: true },
     }) as PublicClient;
     clients.set(chainId, client);

@@ -1,5 +1,5 @@
 import "server-only";
-import { type JBChainId } from "@bananapus/nana-sdk-core";
+import { getJBContractAddress, isContractRevertError, RevnetCoreContracts, type JBChainId } from "@bananapus/nana-sdk-core";
 import { decode721RulesetMetadata, getCurrentRuleset, getProject721Shop, parseTierMetadataJson, tierDisplayMetadata, tierMediaImageUrl } from "@bananapus/nana-sdk-core/v6";
 import type { Address } from "viem";
 import { bendystraw } from "./bendystraw";
@@ -38,6 +38,28 @@ export function resolvedMediaUrl(value: unknown): string | undefined {
   return resolved?.startsWith("ipfs://") ? undefined : resolved;
 }
 
+// The REVOwner singleton is the same address across every chain it's deployed
+// to, and a project is a revnet iff REVOwner owns it (REVDeployer transfers
+// ownership to REVOwner at launch and it's never reassigned). This is the
+// on-chain source of truth for getProject721Shop's isRevnet branch — a
+// revnet's ruleset dataHook is REVOwner itself (it dispatches pay-time logic
+// per revnet, not a JB721TiersHook directly), so the non-revnet branch's
+// STORE() probe on it correctly reverts and getProject721Shop falls back to
+// "no shop". Bendystraw's own isRevnet flag is corroboration only, never the
+// sole source: a Bendystraw miss (indexer lag, or a project it hasn't
+// flagged) must not silently turn a real revnet into a false "no shop".
+function revOwnerAddress(chainId: JBChainId): Address | null {
+  try {
+    return getJBContractAddress(RevnetCoreContracts.REVOwner, 6, chainId);
+  } catch {
+    return null; // no REVOwner deployment on this chain: it can't be a revnet here
+  }
+}
+
+export function isRevnetOwner(owner: Address, revOwner: Address | null): boolean {
+  return revOwner !== null && owner.toLowerCase() === revOwner.toLowerCase();
+}
+
 export function mergeTierMeta(rows: BendyTier[]): Map<number, TierMeta> {
   const out = new Map<number, TierMeta>();
   for (const r of rows) {
@@ -57,7 +79,7 @@ export function mergeTierMeta(rows: BendyTier[]): Map<number, TierMeta> {
   return out;
 }
 
-const SHOP_QUERY = `query Shop($chainId: Int!, $projectId: Int!) {
+const SHOP_QUERY = `query Shop($chainId: Float!, $projectId: Float!) {
   project(chainId: $chainId, projectId: $projectId, version: 6) {
     metadata isRevnet
     nftHooks { items { address symbol nftTiers { items { tierId metadata resolvedUri allowOwnerMint transfersPausable cannotBeRemoved reserveBeneficiary } } } }
@@ -100,17 +122,29 @@ const storeFlagsAbi = [
 
 export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{ shop: Shop; items: Item[] } | null> {
   const client = publicClientFor(chainId);
-  let bendy: ShopQuery["project"] = null;
-  try {
-    bendy = (await bendystraw<ShopQuery>(chainId, SHOP_QUERY, { chainId, projectId: Number(projectId) })).project;
-  } catch {
-    bendy = null; // lists/metadata are optional; the chain reads below are authoritative
-  }
-  const sdk = await getProject721Shop(client, { chainId, projectId, isRevnet: bendy?.isRevnet ?? false, tierLimit: 1000 });
+  const [bendy, ownerProbe] = await Promise.all([
+    bendystraw<ShopQuery>(chainId, SHOP_QUERY, { chainId, projectId: Number(projectId) })
+      .then((r) => r.project)
+      .catch((): ShopQuery["project"] => null), // lists/metadata are optional; the chain reads below are authoritative
+    projectOwner(chainId, projectId).catch((error: unknown) => {
+      // ownerOf() reverts for a project that was never minted — a legitimate
+      // "no shop" signal handled by the null hook below, not a transport
+      // failure. Only swallow the on-chain revert; anything else (RPC down,
+      // wrong chain, timeout) must reach error.tsx, never masquerade as
+      // "not a revnet".
+      if (isContractRevertError(error)) return null;
+      throw error;
+    }),
+  ]);
+  const isRevnet = (ownerProbe !== null && isRevnetOwner(ownerProbe, revOwnerAddress(chainId))) || (bendy?.isRevnet ?? false);
+  const sdk = await getProject721Shop(client, { chainId, projectId, isRevnet, tierLimit: 1000 });
   if (!sdk) return null;
+  // getProject721Shop only resolves a hook for a project that exists, so the
+  // revert-tolerant probe above must have succeeded; re-probing only covers
+  // the type, not a real code path.
+  const owner = ownerProbe ?? (await projectOwner(chainId, projectId));
 
-  const [owner, rulesetWithMetadata, flags, handle] = await Promise.all([
-    projectOwner(chainId, projectId),
+  const [rulesetWithMetadata, flags, handle] = await Promise.all([
     getCurrentRuleset(client, { chainId, projectId }),
     client.readContract({ address: sdk.store, abi: storeFlagsAbi, functionName: "flagsOf", args: [sdk.hook] }),
     handleFor(chainId, projectId),

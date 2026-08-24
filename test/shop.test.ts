@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeTierMeta, resolvedMediaUrl } from "@/lib/shop";
+import { isRevnetOwner, mergeTierMeta, resolvedMediaUrl } from "@/lib/shop";
 
 describe("mergeTierMeta", () => {
   it("keys rows by tierId, resolves a valid ipfs CID through the gateway, reads flags", () => {
@@ -47,5 +47,25 @@ describe("resolvedMediaUrl", () => {
 
   it("passes through undefined", () => {
     expect(resolvedMediaUrl(undefined)).toBeUndefined();
+  });
+});
+
+describe("isRevnetOwner", () => {
+  const REV_OWNER = "0x2ba4705ad0332cdfb299b452068438bcba3faaf3";
+
+  it("matches when the project owner is the REVOwner singleton", () => {
+    expect(isRevnetOwner(REV_OWNER, REV_OWNER)).toBe(true);
+  });
+
+  it("matches case-insensitively (checksum vs lowercase)", () => {
+    expect(isRevnetOwner("0x2BA4705AD0332CdFB299B452068438bCba3faAf3", REV_OWNER)).toBe(true);
+  });
+
+  it("is false when the owner is some other address", () => {
+    expect(isRevnetOwner("0x0000000000000000000000000000000000dEaD", REV_OWNER)).toBe(false);
+  });
+
+  it("is false when there's no REVOwner deployment on the chain", () => {
+    expect(isRevnetOwner(REV_OWNER, null)).toBe(false);
   });
 });

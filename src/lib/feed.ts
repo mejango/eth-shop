@@ -27,9 +27,9 @@ type FeedRow = BendyTier & {
   remainingSupply: number;
   category: number;
   votingUnits: string | null;
-  reserveFrequency: number;
+  reserveFrequency: number | null;
   createdAt: number;
-  hook: { address: string; projectId: number; project: { metadata: Record<string, unknown> | null } | null };
+  hook: { address: string; projectId: number; project: { metadata: Record<string, unknown> | null } | null } | null;
 };
 type FeedQuery = { nftTiers: { items: FeedRow[]; pageInfo: { endCursor: string | null; hasNextPage: boolean } } };
 
@@ -37,11 +37,21 @@ export function orderFeedRows<T extends { createdAt: number; initialSupply: numb
   return rows.filter((r) => r.initialSupply > 0).sort((a, b) => b.createdAt - a.createdAt);
 }
 
+// A half-indexed row (chain not yet supported by this app, or hook not yet
+// backfilled by Bendystraw) shouldn't fail the whole feed — drop just that card.
+export function usableFeedRows<T extends { chainId: number; hook: unknown }>(
+  rows: T[],
+): (T & { hook: NonNullable<T["hook"]> })[] {
+  return rows.filter(
+    (r): r is T & { hook: NonNullable<T["hook"]> } => isSupportedChain(r.chainId) && r.hook != null,
+  );
+}
+
 // ponytail: nftTier carries no pricing currency/decimals, so the feed labels every price as 18-dec ETH
 // and the shop page corrects it from chain. Fix at the source once Bendystraw indexes hook pricing.
 export async function readFeed({ limit = 40, after = null }: { limit?: number; after?: string | null } = {}): Promise<Feed> {
   const data = await bendystraw<FeedQuery>(SUPPORTED_CHAIN_IDS[0], FEED_QUERY, { limit, after });
-  const rows = orderFeedRows(data.nftTiers.items).filter((r) => isSupportedChain(r.chainId));
+  const rows = usableFeedRows(orderFeedRows(data.nftTiers.items));
   const items = rows.map((r) => {
     const meta = mergeTierMeta([r]).get(r.tierId);
     const pm = (r.hook.project?.metadata ?? {}) as { name?: string; logoUri?: string };
@@ -52,7 +62,7 @@ export async function readFeed({ limit = 40, after = null }: { limit?: number; a
       remainingSupply: r.remainingSupply,
       initialSupply: r.initialSupply,
       votingUnits: BigInt(r.votingUnits ?? 0),
-      reserveFrequency: r.reserveFrequency,
+      reserveFrequency: r.reserveFrequency ?? 0,
       category: r.category,
       discountPercent: 0,
       encodedIpfsUri: "0x" as const,

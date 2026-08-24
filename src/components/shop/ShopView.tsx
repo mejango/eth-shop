@@ -145,7 +145,7 @@ export function ShopView({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-baseline gap-4 text-sm">
               <span>
-                <b className="font-mono">{cartCount}</b> in cart ·{" "}
+                <b className="font-mono">{cartCount}</b> in cart for{" "}
                 <b className="font-mono">
                   {fmt(cartTotal)} {unit}
                 </b>
@@ -184,7 +184,7 @@ export function ShopView({
             <Art hue={openItem.hue} className="h-full" />
             <div className="flex flex-col p-6">
               <p className="font-mono text-xs text-mute">
-                eth.shop/{shop.handle} · {openItem.category}
+                eth.shop/{shop.handle} / {openItem.category}
               </p>
               <h2 className="display mt-1 text-2xl font-extrabold">{openItem.name}</h2>
               <p className="mt-3 text-sm text-mute">
@@ -243,7 +243,7 @@ export function ShopView({
                 >
                   {openItem.left === 0
                     ? "Sold out"
-                    : `Buy · ${priceAfterDiscount(openItem) || "free"} ${priceAfterDiscount(openItem) ? unit : ""}`}
+                    : `Buy for ${priceAfterDiscount(openItem) ? `${priceAfterDiscount(openItem)} ${unit}` : "free"}`}
                 </button>
                 <button
                   type="button"
@@ -382,7 +382,7 @@ function Holder({
   return (
     <div className="tag mt-2 space-y-2 pt-3">
       <p className="text-xs text-mute">
-        You own {mine.length} · token {one.tokenId}
+        You own {mine.length} (token {one.tokenId})
       </p>
       <div className="grid grid-cols-2 gap-2">
         <button
@@ -589,10 +589,10 @@ function Manage({
               </label>
               <div className="min-w-0">
                 <p className="truncate text-sm">
-                  {it.name} <span className="text-mute">· {it.category}</span>
+                  {it.name} <span className="text-mute">in {it.category}</span>
                 </p>
                 <p className="text-xs text-mute">
-                  <Price item={it} unit={shop.currency} /> · <Availability item={it} /> · sold{" "}
+                  <Price item={it} unit={shop.currency} />, <Availability item={it} />, sold{" "}
                   {it.sold ?? 0}
                 </p>
               </div>
@@ -822,7 +822,7 @@ function Manage({
             <li key={op.address} className="flex items-center justify-between gap-3">
               <span>
                 <span className="font-mono">{op.address}</span>{" "}
-                <span className="text-mute">· {op.can.join(", ")}</span>
+                <span className="text-mute">can {op.can.join(", ").toLowerCase()}</span>
               </span>
               <button
                 type="button"

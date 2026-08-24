@@ -291,7 +291,7 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
                             </span>
                           </div>
                           <p className="mt-1 text-xs text-mute">
-                            {it.kind} · {it.limited && it.limit ? `${it.limit} left` : "unlimited"}
+                            {it.kind}, {it.limited && it.limit ? `${it.limit} left` : "unlimited"}
                           </p>
                         </div>
                       ))}

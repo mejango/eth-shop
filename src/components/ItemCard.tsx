@@ -33,7 +33,7 @@ export function Availability({ item }: { item: Item }) {
   if (item.left === undefined) return <>unlimited</>;
   return (
     <>
-      {item.left} left{item.reservePending ? ` · ${item.reservePending} reserved` : ""}
+      {item.left} left{item.reservePending ? `, ${item.reservePending} reserved` : ""}
     </>
   );
 }

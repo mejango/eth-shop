@@ -10,6 +10,20 @@ export type Item = {
   left?: number; // remaining supply; undefined = unlimited
   hue: number;
   blurb?: string;
+  // 721 tier surface beyond the basics; all optional, default = off.
+  discount?: number; // % off, 0-100 (encodes ×2, denominator 200)
+  reserveEvery?: number; // 1 of every N sold is reserved
+  reservePending?: number; // reserved NFTs not yet minted
+  reserveTo?: string;
+  votes?: number;
+  nonTransferable?: boolean;
+  permanent?: boolean;
+  noCredits?: boolean; // cantBuyWithCredits
+  ownerMint?: boolean;
+  splitPercent?: number;
+  splitTo?: string;
+  sold?: number;
+  removed?: boolean;
 };
 export type Shop = {
   handle: string;
@@ -19,6 +33,16 @@ export type Shop = {
   hue: number;
   chain: string;
   projectId: number;
+  // hook + ruleset level
+  currency?: "ETH" | "USD";
+  symbol?: string;
+  cashOut?: boolean; // items can cash out for surplus
+  transfersPaused?: boolean;
+  reservesPaused?: boolean;
+  issueTokensForSplits?: boolean;
+  preventOverspending?: boolean;
+  surplus?: string; // ETH held by the project
+  operators?: { address: string; can: string[] }[];
 };
 
 export const shops: Shop[] = [
@@ -202,6 +226,114 @@ export const items: Item[] = [
     70,
   ),
 ];
+
+const demo = (rows: Partial<Item>[]): Item[] =>
+  rows.map(
+    (r, i) =>
+      ({
+        id: 100 + i,
+        shop: "demo",
+        category: "Basics",
+        name: "",
+        price: "0.01",
+        kind: "digital",
+        hue: (250 + i * 23) % 360,
+        ...r,
+      }) as Item,
+  );
+
+items.push(
+  ...demo([
+    {
+      name: "Plain digital item",
+      blurb: "Unlimited supply, no rules. The simplest thing you can sell.",
+    },
+    {
+      name: "Physical, 20 left",
+      kind: "physical",
+      left: 20,
+      sold: 5,
+      blurb: "Ships after purchase. Shipping details go through private chat.",
+    },
+    {
+      name: "Sold out",
+      left: 0,
+      sold: 50,
+      blurb: "Supply exhausted. Card stays so people know it existed.",
+    },
+    {
+      name: "25% off right now",
+      price: "0.02",
+      discount: 25,
+      category: "Pricing",
+      blurb:
+        "Discount is the ONE price knob that can change after launch. Cash-out weight still counts the full price.",
+    },
+    {
+      name: "Free (100% off)",
+      price: "0.05",
+      discount: 100,
+      category: "Pricing",
+      blurb: "Discounted to zero. Still dilutes surplus at full price.",
+    },
+    {
+      name: "Reserved: 1 in 5 to the studio",
+      price: "0.008",
+      left: 40,
+      sold: 12,
+      reserveEvery: 5,
+      reservePending: 2,
+      reserveTo: "studio.eth",
+      category: "Rules",
+      blurb:
+        "For every 5 sold, one is set aside. Anyone can mint the pending ones to the beneficiary.",
+    },
+    {
+      name: "Non-transferable ticket",
+      price: "0.03",
+      left: 100,
+      sold: 41,
+      nonTransferable: true,
+      category: "Rules",
+      blurb: "Can't be resold or sent while the shop's transfer pause is on. Show it at the door.",
+    },
+    {
+      name: "Permanent item",
+      permanent: true,
+      category: "Rules",
+      blurb: "Can never be removed from the shop.",
+    },
+    {
+      name: "No credit purchases",
+      price: "0.015",
+      noCredits: true,
+      category: "Rules",
+      blurb: "Must be paid for with fresh funds; leftover credit can't cover it.",
+    },
+    {
+      name: "Owner can mint free",
+      left: 10,
+      ownerMint: true,
+      category: "Rules",
+      blurb: "The shop owner (or an operator with the mint permission) can hand these out.",
+    },
+    {
+      name: "10 votes each",
+      price: "0.05",
+      votes: 10,
+      category: "Governance",
+      blurb: "Each one carries 10 votes in the project. Holders delegate from their account.",
+    },
+    {
+      name: "30% to a collaborator",
+      price: "0.04",
+      splitPercent: 30,
+      splitTo: "collab.eth",
+      category: "Splits",
+      blurb: "30% of every sale routes to collab.eth at mint time. The rest stays in the shop.",
+    },
+  ]),
+);
 
 export const shopBy = (handle: string) => shops.find((s) => s.handle === handle);
 export const itemsOf = (handle: string) => items.filter((i) => i.shop === handle);

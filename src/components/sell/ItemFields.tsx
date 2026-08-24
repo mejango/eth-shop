@@ -50,7 +50,10 @@ export function ItemFields({ item, categories, currency, onChange, onAddCategory
       </div>
 
       <div className="grid grid-cols-2 gap-6">
-        <Field label={`Price (${currency})`}>
+        <Field
+          label={`Price (${currency})`}
+          hint="Fixed once the item exists; only discounts can change later."
+        >
           <input
             required
             inputMode="decimal"
@@ -192,6 +195,7 @@ export function ItemFields({ item, categories, currency, onChange, onAddCategory
 
         <div>
           <span className="text-sm text-mute">Reserve inventory</span>
+          <p className="text-xs text-mute">Needs a supply of at least 2.</p>
           <div className="flex flex-wrap items-baseline gap-2 text-sm">
             <span>1 of every</span>
             <input

@@ -155,6 +155,18 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
             </div>
             <div>
               <Check
+                label="Items can cash out for surplus"
+                hint="Holders can burn an item for its share of what the shop holds."
+                checked={shop.cashOut}
+                onChange={(v) => setS({ cashOut: v })}
+              />
+              <Check
+                label="Full token credit on split sales"
+                hint="Buyers get project tokens for their whole payment, even the part an item routes to splits."
+                checked={shop.issueTokensForSplits}
+                onChange={(v) => setS({ issueTokensForSplits: v })}
+              />
+              <Check
                 label="Require exact payment"
                 hint="Reject payments that overshoot an item's price."
                 checked={shop.exactPayment}

@@ -1,5 +1,4 @@
 import type { Item } from "@/lib/fixtures";
-import Link from "next/link";
 
 export function Art({ hue, className = "" }: { hue: number; className?: string }) {
   // ponytail: placeholder artwork until tier media resolves from IPFS.
@@ -11,28 +10,71 @@ export function Art({ hue, className = "" }: { hue: number; className?: string }
   );
 }
 
-export function ItemCard({ item, showShop }: { item: Item; showShop?: boolean }) {
-  const soldOut = item.left === 0;
+export const priceAfterDiscount = (item: Item) =>
+  item.discount
+    ? +(Number(item.price) * (1 - item.discount / 100)).toPrecision(3)
+    : Number(item.price);
+
+export function Price({ item, unit = "ETH", big }: { item: Item; unit?: string; big?: boolean }) {
+  const now = priceAfterDiscount(item);
   return (
-    <Link href={`/${item.shop}?item=${item.id}`} className="group block" scroll={false}>
+    <span
+      className={`shrink-0 font-mono font-semibold ${big ? "text-2xl" : "text-lg"} ${item.left === 0 ? "text-mute line-through" : ""}`}
+    >
+      {item.discount ? <s className="mr-1.5 text-sm font-normal text-mute">{item.price}</s> : null}
+      {now === 0 ? "Free" : `${now} ${unit}`}
+    </span>
+  );
+}
+
+export function Availability({ item }: { item: Item }) {
+  if (item.removed) return <>removed</>;
+  if (item.left === 0) return <>sold out</>;
+  if (item.left === undefined) return <>unlimited</>;
+  return (
+    <>
+      {item.left} left{item.reservePending ? ` · ${item.reservePending} reserved` : ""}
+    </>
+  );
+}
+
+export function ItemCard({
+  item,
+  showShop,
+  unit,
+  onOpen,
+}: {
+  item: Item;
+  showShop?: boolean;
+  unit?: string;
+  onOpen?: () => void;
+}) {
+  const inner = (
+    <>
       <Art
         hue={item.hue}
-        className="rounded-sm transition-transform group-hover:-translate-y-0.5"
+        className={`rounded-sm transition-transform group-hover:-translate-y-0.5 ${item.removed ? "opacity-40" : ""}`}
       />
       <div className="tag mt-3 flex items-baseline justify-between gap-3 pt-2">
         <span className="font-sans text-sm leading-tight">{item.name}</span>
-        <span
-          className={`shrink-0 text-lg font-semibold ${soldOut ? "text-mute line-through" : ""}`}
-        >
-          {item.price} ETH
-        </span>
+        <Price item={item} unit={unit} />
       </div>
       <div className="mt-1 flex justify-between text-xs text-mute">
         <span>{showShop ? `eth.shop/${item.shop}` : item.kind}</span>
         <span>
-          {soldOut ? "sold out" : item.left !== undefined ? `${item.left} left` : "unlimited"}
+          <Availability item={item} />
         </span>
       </div>
-    </Link>
+    </>
+  );
+  const href = `/${item.shop}?item=${item.id}`;
+  return onOpen ? (
+    <button type="button" onClick={onOpen} className="group block w-full text-left">
+      {inner}
+    </button>
+  ) : (
+    <a href={href} className="group block">
+      {inner}
+    </a>
   );
 }

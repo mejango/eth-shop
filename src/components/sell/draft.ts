@@ -33,6 +33,8 @@ export type ShopDraft = {
   collectionName: string;
   symbol: string;
   exactPayment: boolean;
+  cashOut: boolean;
+  issueTokensForSplits: boolean;
   lockReserved: boolean;
   lockVotes: boolean;
   lockOwnerMint: boolean;
@@ -74,6 +76,8 @@ export const blankShop = (handle = ""): ShopDraft => ({
   collectionName: "",
   symbol: "",
   exactPayment: false,
+  cashOut: false,
+  issueTokensForSplits: false,
   lockReserved: false,
   lockVotes: false,
   lockOwnerMint: false,

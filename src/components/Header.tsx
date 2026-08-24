@@ -8,11 +8,14 @@ export function Header({ right }: { right?: React.ReactNode }) {
       </Link>
       <nav className="flex items-center gap-5 text-sm">
         {right}
+        <Link href="/#buy" className="font-medium hover:text-accent">
+          Buy
+        </Link>
         <Link
           href="/sell"
           className="rounded-full bg-ink px-4 py-1.5 font-medium text-paper hover:bg-accent"
         >
-          Sell something
+          Sell
         </Link>
       </nav>
     </header>

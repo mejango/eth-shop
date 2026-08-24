@@ -1,6 +1,6 @@
 import "server-only";
 import { type JBChainId } from "@bananapus/nana-sdk-core";
-import { decode721RulesetMetadata, getCurrentRuleset, getProject721Shop, parseTierMetadataJson, pickTierMetadata } from "@bananapus/nana-sdk-core/v6";
+import { decode721RulesetMetadata, getCurrentRuleset, getProject721Shop, parseTierMetadataJson, tierDisplayMetadata } from "@bananapus/nana-sdk-core/v6";
 import type { Address } from "viem";
 import { bendystraw } from "./bendystraw";
 import { publicClientFor } from "./chains";
@@ -22,12 +22,20 @@ export type BendyTier = {
   reserveBeneficiary?: string | null;
 };
 
-// Same convention as the project logo below: a plain "ipfs://" prefix swap, not
-// the SDK's ipfsAssetPath/tierMediaImageUrl (which fail closed on anything that
-// isn't a real, validated CID — Bendystraw's pinned/resolved values already are
-// CIDs, so the extra strictness only adds a second resolution convention).
+// Naive prefix swap, used only for the project logo below (plain pinned
+// uploads, not tier media): a plain "ipfs://" -> gateway replace.
 function resolveIpfsUri(value: string | undefined): string | undefined {
   return value?.startsWith("ipfs://") ? GATEWAY + value.slice("ipfs://".length) : value;
+}
+
+// tierDisplayMetadata (SDK) fails closed on an invalid CID: it leaves the raw
+// "ipfs://<bad-cid>" string untouched rather than resolving it through the
+// gateway (verified against @bananapus/nana-sdk-core dist/esm/v6/nft.js
+// tierMediaAssetUrl/tierMediaImageUrl). A raw ipfs:// URI is not renderable by
+// a browser <img>/<source>, so treat "still has the ipfs: scheme after
+// resolution" as "resolution failed" and drop it rather than ship a broken src.
+function droppedIfUnresolved(value: string | undefined): string | undefined {
+  return value?.startsWith("ipfs://") ? undefined : value;
 }
 
 export function mergeTierMeta(rows: BendyTier[]): Map<number, TierMeta> {
@@ -35,11 +43,11 @@ export function mergeTierMeta(rows: BendyTier[]): Map<number, TierMeta> {
   for (const r of rows) {
     const resolved = r.resolvedUri ? parseTierMetadataJson(r.resolvedUri) : null;
     const json = resolved ?? (r.metadata && typeof r.metadata === "object" ? (r.metadata as Record<string, unknown>) : {});
-    const picked = pickTierMetadata(json);
+    const display = tierDisplayMetadata(json, GATEWAY);
     out.set(r.tierId, {
-      ...picked,
-      image: resolveIpfsUri(picked.image),
-      animationUrl: resolveIpfsUri(picked.animationUrl),
+      ...display,
+      image: droppedIfUnresolved(display.image),
+      animationUrl: droppedIfUnresolved(display.animationUrl),
       allowOwnerMint: r.allowOwnerMint ?? undefined,
       transfersPausable: r.transfersPausable ?? undefined,
       cannotBeRemoved: r.cannotBeRemoved ?? undefined,

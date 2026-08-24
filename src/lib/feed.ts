@@ -37,6 +37,12 @@ export function orderFeedRows<T extends { createdAt: number; initialSupply: numb
   return rows.filter((r) => r.initialSupply > 0).sort((a, b) => b.createdAt - a.createdAt);
 }
 
+// The home feed is content-first: a tier whose metadata pinned neither a name nor an
+// image isn't feed-worthy — it still renders fine on its own shop page.
+export function isFeedWorthy(meta: { name?: string; image?: string } | undefined): boolean {
+  return !!meta?.name || !!meta?.image;
+}
+
 // A half-indexed row (chain not yet supported by this app, or hook not yet
 // backfilled by Bendystraw) shouldn't fail the whole feed — drop just that card.
 export function usableFeedRows<T extends { chainId: number; hook: unknown }>(
@@ -52,8 +58,9 @@ export function usableFeedRows<T extends { chainId: number; hook: unknown }>(
 export async function readFeed({ limit = 40, after = null }: { limit?: number; after?: string | null } = {}): Promise<Feed> {
   const data = await bendystraw<FeedQuery>(SUPPORTED_CHAIN_IDS[0], FEED_QUERY, { limit, after });
   const rows = usableFeedRows(orderFeedRows(data.nftTiers.items));
-  const items = rows.map((r) => {
+  const items = rows.flatMap((r) => {
     const meta = mergeTierMeta([r]).get(r.tierId);
+    if (!isFeedWorthy(meta)) return [];
     const pm = (r.hook.project?.metadata ?? {}) as { name?: string; logoUri?: string };
     const slug = slugFor(r.chainId as (typeof SUPPORTED_CHAIN_IDS)[number], r.hook.projectId);
     const tier = {
@@ -68,7 +75,7 @@ export async function readFeed({ limit = 40, after = null }: { limit?: number; a
       encodedIpfsUri: "0x" as const,
       resolvedUri: r.resolvedUri ?? "",
     };
-    return { ...mapItem({ shopSlug: slug, tier, meta, currency: currencyOf({ currency: 1 }), decimals: 18 }), shopName: pm.name ?? slug, shopLogo: resolvedMediaUrl(pm.logoUri) };
+    return [{ ...mapItem({ shopSlug: slug, tier, meta, currency: currencyOf({ currency: 1 }), decimals: 18 }), shopName: pm.name ?? slug, shopLogo: resolvedMediaUrl(pm.logoUri) }];
   });
   return { items, next: data.nftTiers.pageInfo.hasNextPage ? data.nftTiers.pageInfo.endCursor : null };
 }

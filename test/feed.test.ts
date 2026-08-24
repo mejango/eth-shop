@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { orderFeedRows, usableFeedRows } from "@/lib/feed";
+import { isFeedWorthy, orderFeedRows, usableFeedRows } from "@/lib/feed";
 
 describe("orderFeedRows", () => {
   it("newest first, drops empty tiers", () => {
@@ -20,5 +20,27 @@ describe("usableFeedRows", () => {
       { chainId: 999999, hook: { address: "0x2", projectId: 2 }, tierId: 3 },
     ]);
     expect(rows.map((r) => r.tierId)).toEqual([1]);
+  });
+});
+
+describe("isFeedWorthy", () => {
+  it("is false with no metadata", () => {
+    expect(isFeedWorthy(undefined)).toBe(false);
+  });
+
+  it("is false with neither a name nor an image", () => {
+    expect(isFeedWorthy({})).toBe(false);
+  });
+
+  it("is true with a name only", () => {
+    expect(isFeedWorthy({ name: "Rhoads" })).toBe(true);
+  });
+
+  it("is true with an image only", () => {
+    expect(isFeedWorthy({ image: "https://juicebox.center/ipfs/x" })).toBe(true);
+  });
+
+  it("is true with both", () => {
+    expect(isFeedWorthy({ name: "Rhoads", image: "https://juicebox.center/ipfs/x" })).toBe(true);
   });
 });

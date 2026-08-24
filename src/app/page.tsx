@@ -1,7 +1,8 @@
-import { HandleHero, SLOGANS } from "@/components/HandleHero";
+import { HandleHero } from "@/components/HandleHero";
 import { Header } from "@/components/Header";
 import { ItemCard } from "@/components/ItemCard";
 import { items } from "@/lib/fixtures";
+import { SLOGANS } from "@/lib/slogans";
 import Link from "next/link";
 
 // ponytail: ?s=N cycles slogan candidates in place; delete once one is picked.

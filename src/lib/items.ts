@@ -16,7 +16,12 @@ export type TierMeta = TierMetadata & {
 export function formatPrice(amount: bigint, decimals: number, currency: Currency): string {
   if (amount === 0n) return "Free";
   const n = Number(formatUnits(amount, decimals));
-  const text = n >= 1 ? n.toLocaleString("en-US", { maximumFractionDigits: 4 }) : n.toPrecision(4).replace(/\.?0+$/, "");
+  const text = new Intl.NumberFormat("en-US", {
+    maximumSignificantDigits: 7,
+    maximumFractionDigits: 20,
+    minimumFractionDigits: 0,
+    useGrouping: true,
+  }).format(n);
   return `${text} ${currency}`;
 }
 

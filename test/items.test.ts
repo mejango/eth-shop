@@ -37,4 +37,11 @@ describe("formatPrice", () => {
     expect(formatPrice(25_000_000n, 6, "USD")).toBe("25 USD");
     expect(formatPrice(1_234_500_000_000_000_000n, 18, "ETH")).toBe("1.2345 ETH");
   });
+  it("formats very small amounts without scientific notation", () => {
+    expect(formatPrice(100_000_000n, 18, "ETH")).toBe("0.0000000001 ETH");
+    expect(formatPrice(1n, 18, "ETH")).toBe("0.000000000000000001 ETH");
+  });
+  it("formats large amounts with grouping", () => {
+    expect(formatPrice(1_234_567_000_000_000_000_000n, 18, "ETH")).toBe("1,234.567 ETH");
+  });
 });

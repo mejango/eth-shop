@@ -76,6 +76,20 @@ export const shops: Shop[] = [
     projectId: 7,
   },
   {
+    handle: "demo",
+    name: "Everything Shop",
+    tagline: "One of each thing the 721 hook can do.",
+    about:
+      "A demo shop. Every card here exercises a different feature: categories, discounts, reserves, votes, splits, credits, sold-out, non-transferable, and owner-only mints. Open Manage to see the other side of the counter.",
+    hue: 250,
+    chain: "base",
+    projectId: 999,
+    symbol: "DEMO",
+    cashOut: true,
+    surplus: "1.24",
+    operators: [{ address: "ada.eth", can: ["Add & remove items", "Update item details"] }],
+  },
+  {
     handle: "salt",
     name: "Salt Ceramics",
     tagline: "Mugs, one kiln at a time.",

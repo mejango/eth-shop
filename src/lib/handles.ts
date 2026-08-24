@@ -1,3 +1,4 @@
+import "server-only";
 import { getJBContractAddress, JBCoreContracts, type JBChainId } from "@bananapus/nana-sdk-core";
 import type { Address } from "viem";
 import { normalize } from "viem/ens";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeTierMeta } from "@/lib/shop";
+import { mergeTierMeta, resolvedMediaUrl } from "@/lib/shop";
 
 describe("mergeTierMeta", () => {
   it("keys rows by tierId, resolves a valid ipfs CID through the gateway, reads flags", () => {
@@ -27,5 +27,25 @@ describe("mergeTierMeta", () => {
   it("drops an image that fails CID validation rather than shipping an unrenderable ipfs: uri", () => {
     const m = mergeTierMeta([{ tierId: 5, metadata: { name: "Bad", image: "ipfs://abc" }, resolvedUri: "" }]);
     expect(m.get(5)?.image).toBeUndefined();
+  });
+});
+
+describe("resolvedMediaUrl", () => {
+  it("resolves a valid ipfs CID through the gateway", () => {
+    expect(resolvedMediaUrl("ipfs://bafybeian6sdh3idofou7v2f5ufw2et52lnlxj5ijtnmiw2fghgxnsszpha")).toBe(
+      "https://juicebox.center/ipfs/bafybeian6sdh3idofou7v2f5ufw2et52lnlxj5ijtnmiw2fghgxnsszpha",
+    );
+  });
+
+  it("drops an invalid ipfs CID", () => {
+    expect(resolvedMediaUrl("ipfs://abc")).toBeUndefined();
+  });
+
+  it("passes through an ordinary http(s) URL", () => {
+    expect(resolvedMediaUrl("https://example.com/logo.png")).toBe("https://example.com/logo.png");
+  });
+
+  it("passes through undefined", () => {
+    expect(resolvedMediaUrl(undefined)).toBeUndefined();
   });
 });

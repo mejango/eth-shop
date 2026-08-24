@@ -1,6 +1,6 @@
 import "server-only";
 import { type JBChainId } from "@bananapus/nana-sdk-core";
-import { decode721RulesetMetadata, getCurrentRuleset, getProject721Shop, parseTierMetadataJson, tierDisplayMetadata } from "@bananapus/nana-sdk-core/v6";
+import { decode721RulesetMetadata, getCurrentRuleset, getProject721Shop, parseTierMetadataJson, tierDisplayMetadata, tierMediaImageUrl } from "@bananapus/nana-sdk-core/v6";
 import type { Address } from "viem";
 import { bendystraw } from "./bendystraw";
 import { publicClientFor } from "./chains";
@@ -22,20 +22,20 @@ export type BendyTier = {
   reserveBeneficiary?: string | null;
 };
 
-// Naive prefix swap, used only for the project logo below (plain pinned
-// uploads, not tier media): a plain "ipfs://" -> gateway replace.
-function resolveIpfsUri(value: string | undefined): string | undefined {
-  return value?.startsWith("ipfs://") ? GATEWAY + value.slice("ipfs://".length) : value;
-}
-
-// tierDisplayMetadata (SDK) fails closed on an invalid CID: it leaves the raw
-// "ipfs://<bad-cid>" string untouched rather than resolving it through the
-// gateway (verified against @bananapus/nana-sdk-core dist/esm/v6/nft.js
-// tierMediaAssetUrl/tierMediaImageUrl). A raw ipfs:// URI is not renderable by
-// a browser <img>/<source>, so treat "still has the ipfs: scheme after
-// resolution" as "resolution failed" and drop it rather than ship a broken src.
-function droppedIfUnresolved(value: string | undefined): string | undefined {
-  return value?.startsWith("ipfs://") ? undefined : value;
+// Resolve any raw tier or project media reference (an "ipfs://" URI, an
+// http(s) URL, or a data: URI) through the SDK's strict, CID-validated
+// resolver, for both the project logo and tier images/animations. Also
+// guards a defect in that resolver: tierMediaImageUrl fails closed on an
+// invalid CID by returning the raw, unresolved "ipfs://<bad-cid>" string
+// rather than undefined (verified against @bananapus/nana-sdk-core
+// dist/esm/v6/nft.js tierMediaAssetUrl/tierMediaImageUrl) — a raw ipfs: URI
+// is not renderable by a browser <img>/<source>, so treat "still has the
+// ipfs: scheme after resolution" as "resolution failed" and drop it.
+// Idempotent on an already-resolved gateway URL, so it's safe to apply to
+// tierDisplayMetadata's own (already-resolved) image/animationUrl output.
+export function resolvedMediaUrl(value: unknown): string | undefined {
+  const resolved = tierMediaImageUrl(value, GATEWAY);
+  return resolved?.startsWith("ipfs://") ? undefined : resolved;
 }
 
 export function mergeTierMeta(rows: BendyTier[]): Map<number, TierMeta> {
@@ -46,8 +46,8 @@ export function mergeTierMeta(rows: BendyTier[]): Map<number, TierMeta> {
     const display = tierDisplayMetadata(json, GATEWAY);
     out.set(r.tierId, {
       ...display,
-      image: droppedIfUnresolved(display.image),
-      animationUrl: droppedIfUnresolved(display.animationUrl),
+      image: resolvedMediaUrl(display.image),
+      animationUrl: resolvedMediaUrl(display.animationUrl),
       allowOwnerMint: r.allowOwnerMint ?? undefined,
       transfersPausable: r.transfersPausable ?? undefined,
       cannotBeRemoved: r.cannotBeRemoved ?? undefined,
@@ -130,7 +130,7 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
     name: pm.name || `Project ${projectId}`,
     tagline: pm.ethShop?.tagline ?? pm.projectTagline,
     about: pm.description,
-    logo: resolveIpfsUri(pm.logoUri),
+    logo: resolvedMediaUrl(pm.logoUri),
     hook: sdk.hook,
     store: sdk.store,
     idTarget: sdk.metadataIdTarget,

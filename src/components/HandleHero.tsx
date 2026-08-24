@@ -34,7 +34,6 @@ export function HandleHero() {
         >
           {h ? `Open eth.shop/${h}` : "Open a shop"}
         </Link>
-        <span className="text-sm text-mute">Takes a minute. No fees beyond Juicebox&apos;s.</span>
       </div>
     </section>
   );

@@ -8,12 +8,9 @@ viem 2 / `@bananapus/nana-sdk-core` land when chain reads are wired.
 
 ## Status
 
-Prototype. Every page runs on fixtures in `src/lib/fixtures.ts`; nothing reads the chain yet.
+Reads are live: the home feed and `/<chain>:<id>` or `/<ens-handle>` shop pages come from Bendystraw
+and the chain. `/demo` is a static walkthrough of every 721 feature including the owner console.
+Buying, opening a shop and managing one are not wired yet (see docs/superpowers/specs).
 
-- `/` home, marketplace direction. `/?v=b` storefront-platform direction.
-- `/<handle>` a shop. Try `/tea` (small) and `/press` (grown).
-- `/sell` the create flow.
-
-```sh
-npm ci && npm run dev   # http://localhost:3003
-```
+Env: copy `.env.example` to `.env.local`. Set `NEXT_PUBLIC_RPC_<chainId>` to at least two providers
+per chain you care about.

@@ -13,6 +13,7 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit --incremental false",
     "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm run test && npm run build",
     "format:write": "prettier --write \"**/*.{js,jsx,mjs,ts,tsx,json,css}\""
   },
   "dependencies": {

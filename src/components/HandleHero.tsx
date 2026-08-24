@@ -1,5 +1,4 @@
 "use client";
-import { SLOGANS } from "@/lib/slogans";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -9,13 +8,13 @@ const clean = (s: string) =>
     .replace(/[^a-z0-9-]/g, "")
     .slice(0, 32);
 
-export function HandleHero({ slogan = 0 }: { slogan?: number }) {
+export function HandleHero() {
   const [handle, setHandle] = useState("");
   const h = clean(handle);
   return (
     <section className="px-5 pt-14 pb-16">
-      <h1 className="display max-w-5xl text-5xl font-extrabold leading-none sm:text-8xl">
-        {SLOGANS[slogan]}
+      <h1 className="display max-w-6xl text-5xl font-extrabold leading-none sm:text-8xl">
+        Make it your own.
       </h1>
       <label className="mt-8 flex max-w-2xl flex-wrap items-baseline gap-x-1 font-mono text-3xl sm:text-5xl">
         <span className="text-mute">eth.shop/</span>

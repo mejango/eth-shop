@@ -2,25 +2,14 @@ import { HandleHero } from "@/components/HandleHero";
 import { Header } from "@/components/Header";
 import { ItemCard } from "@/components/ItemCard";
 import { items } from "@/lib/fixtures";
-import { SLOGANS } from "@/lib/slogans";
-import Link from "next/link";
 
-// ponytail: ?s=N cycles slogan candidates in place; delete once one is picked.
-export default async function Home({ searchParams }: { searchParams: Promise<{ s?: string }> }) {
-  const { s } = await searchParams;
-  const slogan = Number(s ?? 0) % SLOGANS.length;
+export default function Home() {
   const feed = [...items].sort((a, b) => ((a.id * 7919) % 97) - ((b.id * 7919) % 97));
   return (
     <>
-      <Header
-        right={
-          <Link href={`/?s=${slogan + 1}`} className="text-mute hover:text-ink">
-            slogan {slogan + 1}/{SLOGANS.length} →
-          </Link>
-        }
-      />
-      <HandleHero slogan={slogan} />
-      <section className="border-t border-shelf-deep px-5 pt-8">
+      <Header />
+      <HandleHero />
+      <section id="buy" className="scroll-mt-14 border-t border-shelf-deep px-5 pt-8">
         <h2 className="text-sm text-mute">Selling right now</h2>
       </section>
       <section className="grid grid-cols-2 gap-x-5 gap-y-10 px-5 py-6 pb-20 sm:grid-cols-3 lg:grid-cols-5">

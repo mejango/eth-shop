@@ -1,5 +1,5 @@
 // ponytail: fixtures stand in for 721 tiers + project metadata until chain reads are wired.
-import { TIER_UNLIMITED_SUPPLY } from "@bananapus/nana-sdk-core/v6";
+import { BASE_CURRENCY_ETH, TIER_UNLIMITED_SUPPLY } from "@bananapus/nana-sdk-core/v6";
 import type { Address } from "viem";
 import { formatPrice } from "./items";
 import type { Item, Shop } from "./types";
@@ -21,6 +21,7 @@ export const demoShop: Shop = {
   idTarget: ZERO,
   symbol: "DEMO",
   currency: "ETH",
+  pricingCurrency: BASE_CURRENCY_ETH,
   decimals: 18,
   flags: { preventOverspending: false, issueTokensForSplits: false },
   ruleset: { pauseTransfers: false, pauseMintPendingReserves: false, cashOut: true },

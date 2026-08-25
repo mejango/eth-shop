@@ -135,14 +135,21 @@ export function usePricePerUnit(
 
       const jbPricesAddress = getJBContractAddress(JBCoreContracts.JBPrices, 6, chainId);
 
-      const pricePerUnit = await publicClient.readContract({
+      const pricePerUnit = (await publicClient.readContract({
         address: jbPricesAddress,
         abi: jbPricesAbi,
         functionName: "pricePerUnitOf",
         args: [projectId, payCurrency, pricingCurrency, BigInt(payDecimals)],
-      });
+      })) as bigint;
 
-      return pricePerUnit as bigint;
+      // A zero price would make every downstream conversion (toPaymentUnits,
+      // amount-due math) collapse to 0 — treat it the same as no feed at
+      // all rather than let checkout proceed against a degenerate price.
+      if (pricePerUnit === 0n) {
+        throw new Error("Price feed returned a zero price.");
+      }
+
+      return pricePerUnit;
     },
     enabled:
       !!(

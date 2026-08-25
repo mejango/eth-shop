@@ -252,6 +252,7 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
     idTarget: sdk.metadataIdTarget,
     symbol: hookRow?.symbol ?? "",
     currency,
+    pricingCurrency: sdk.pricing.currency,
     decimals: sdk.pricing.decimals,
     flags: { preventOverspending: flags.preventOverspending, issueTokensForSplits: flags.issueTokensForSplits },
     ruleset: {

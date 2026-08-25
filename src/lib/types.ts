@@ -16,7 +16,9 @@ export type Shop = {
   store: Address;
   idTarget: Address; // METADATA_ID_TARGET, for pay/cash-out metadata
   symbol: string;
-  currency: Currency;
+  currency: Currency; // display-only ("ETH" | "USD"); use pricingCurrency for math
+  /** Raw JBPrices currency id the shop is priced in — use for any pricing math (JBPrices pair lookups). */
+  pricingCurrency: number;
   decimals: number;
   flags: { preventOverspending: boolean; issueTokensForSplits: boolean };
   ruleset: { pauseTransfers: boolean; pauseMintPendingReserves: boolean; cashOut: boolean };

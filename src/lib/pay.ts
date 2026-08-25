@@ -57,6 +57,19 @@ export function toPaymentUnits(pricingUnits: bigint, pricePerUnit: bigint, prici
 }
 
 /**
+ * Whether `toPaymentUnits`'s ceiling conversion is exact, i.e. no leftover
+ * payment-token dust is introduced by rounding up. False means the shop's
+ * price cannot be matched exactly in the payment token — relevant only when
+ * the shop requires exact payment (`preventOverspending`), since any
+ * leftover then reverts onchain (`JB721TiersHookLib.prepareMint`).
+ */
+export function isExactConversion(pricingUnits: bigint, pricePerUnit: bigint, pricingDecimals: number): boolean {
+  if (pricingUnits === 0n) return true;
+  const divisor = 10n ** BigInt(pricingDecimals);
+  return (pricingUnits * pricePerUnit) % divisor === 0n;
+}
+
+/**
  * Minimum returned tokens after slippage.
  * Computes previewTokens * (10000 - slippageBps) / 10000.
  * Returns 0 only when previewTokens is 0; floors at 1n for nonzero preview.
@@ -72,6 +85,7 @@ export function minReturnedTokens(previewTokens: bigint, slippageBps: bigint): b
  * For example, with decimals=18, rounds up to the nearest 10^16.
  */
 export function roundUp(amount: bigint, decimals: number): bigint {
+  if (decimals < 2) return amount;
   const roundingUnit = 10n ** BigInt(decimals - 2);
   const remainder = amount % roundingUnit;
   if (remainder === 0n) return amount;

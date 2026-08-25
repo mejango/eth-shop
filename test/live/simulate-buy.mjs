@@ -90,12 +90,75 @@ async function main() {
   // on-chain JBPrices read — toPaymentUnits is a pass-through here.
   const amount = toPaymentUnits(effectivePrice, 10n ** 18n, 18);
 
-  const metadata = build721PayMetadata({
+  const balanceOfCall = {
+    to: HOOK,
+    abi: jb721TiersHookAbi,
+    functionName: "balanceOf",
+    args: [PAYER],
+  };
+
+  // Simulates one pay() call for the given amount/metadata and asserts the
+  // buyer's 721 balance increases by exactly tierIds.length. Each call is an
+  // independent simulation (a fresh state override), so scenarios never
+  // interfere with each other.
+  async function runScenario(label, { amount: payAmount, metadata }) {
+    console.log(`\n--- ${label} ---`);
+
+    const request = buildPayTx({
+      chainId: CHAIN_ID,
+      terminal,
+      projectId: PROJECT_ID,
+      token: NATIVE_TOKEN,
+      amount: payAmount,
+      beneficiary: PAYER,
+      minReturnedTokens: 0n,
+      memo: "",
+      metadata,
+    });
+    const payCall = {
+      to: request.address,
+      abi: request.abi,
+      functionName: request.functionName,
+      args: request.args,
+      value: request.value,
+    };
+
+    const { results } = await client.simulateCalls({
+      account: PAYER,
+      calls: [balanceOfCall, payCall, balanceOfCall],
+      stateOverrides: [{ address: PAYER, balance: payAmount + 10n ** 17n }],
+    });
+
+    const [before, payResult, after] = results;
+    if (payResult.status !== "success") {
+      throw new Error(`[${label}] pay() reverted in simulation: ${JSON.stringify(payResult.error ?? payResult)}`);
+    }
+
+    const beforeCount = before.result;
+    const afterCount = after.result;
+    const expected = beforeCount + BigInt(tierIds.length);
+
+    console.log(`pay() call status: ${payResult.status}, gas used: ${payResult.gasUsed}`);
+    console.log(`balanceOf(payer) before: ${beforeCount}`);
+    console.log(`balanceOf(payer) after:  ${afterCount}`);
+    console.log(`expected after:          ${expected}`);
+
+    if (afterCount !== expected) {
+      throw new Error(`[${label}] MINT VERIFICATION FAILED: expected balanceOf ${expected}, got ${afterCount}`);
+    }
+
+    console.log(`OK [${label}]: pay() minted ${tierIds.length} item(s) to ${PAYER} — balanceOf ${beforeCount} -> ${afterCount}.`);
+  }
+
+  // Scenario 1: pay the exact amount, allowOverspending: false. No leftover
+  // is produced (amount === effectivePrice exactly at this 1:1 ETH price),
+  // so the hook never even reaches its overspending check — this proves the
+  // base pay() encoding mints.
+  const exactMetadata = build721PayMetadata({
     metadataIdTarget: ID_TARGET,
     tierIdsToMint: tierIds,
     allowOverspending: false,
   });
-
   const preview = await previewPay(client, {
     chainId: CHAIN_ID,
     terminal,
@@ -103,65 +166,34 @@ async function main() {
     token: NATIVE_TOKEN,
     amount,
     beneficiary: PAYER,
-    metadata,
+    metadata: exactMetadata,
   });
   console.log(
     `Preview: ${formatEther(preview.beneficiaryTokenCount)} BANNY to beneficiary, ${formatEther(preview.reservedTokenCount)} reserved`,
   );
-
-  const request = buildPayTx({
-    chainId: CHAIN_ID,
-    terminal,
-    projectId: PROJECT_ID,
-    token: NATIVE_TOKEN,
+  await runScenario("Scenario 1: exact amount, allowOverspending: false", {
     amount,
-    beneficiary: PAYER,
-    minReturnedTokens: 0n,
-    memo: "",
-    metadata,
+    metadata: exactMetadata,
   });
 
-  const balanceOfCall = {
-    to: HOOK,
-    abi: jb721TiersHookAbi,
-    functionName: "balanceOf",
-    args: [PAYER],
-  };
-  const payCall = {
-    to: request.address,
-    abi: request.abi,
-    functionName: request.functionName,
-    args: request.args,
-    value: request.value,
-  };
-
-  const { results } = await client.simulateCalls({
-    account: PAYER,
-    calls: [balanceOfCall, payCall, balanceOfCall],
-    stateOverrides: [{ address: PAYER, balance: amount + 10n ** 17n }],
+  // Scenario 2: pay 1 wei OVER the exact amount, allowOverspending: true —
+  // the default path every BuyFlow checkout takes for a shop that doesn't
+  // set preventOverspending (see readShop's flagsOf(hook) check for Banny
+  // Retail above). This is the regression guard for finding 1: BuyFlow's
+  // pay metadata must always send allowOverspending: !shop.flags
+  // .preventOverspending, never gated on the round-up checkbox — otherwise
+  // this exact scenario (any leftover, e.g. from a fractional/discounted/
+  // cross-currency price or excess credits) reverts onchain even though the
+  // shop allows overspending.
+  const overspendMetadata = build721PayMetadata({
+    metadataIdTarget: ID_TARGET,
+    tierIdsToMint: tierIds,
+    allowOverspending: true,
   });
-
-  const [before, payResult, after] = results;
-  if (payResult.status !== "success") {
-    throw new Error(`pay() reverted in simulation: ${JSON.stringify(payResult.error ?? payResult)}`);
-  }
-
-  const beforeCount = before.result;
-  const afterCount = after.result;
-  const expected = beforeCount + BigInt(tierIds.length);
-
-  console.log(`pay() call status: ${payResult.status}, gas used: ${payResult.gasUsed}`);
-  console.log(`balanceOf(payer) before: ${beforeCount}`);
-  console.log(`balanceOf(payer) after:  ${afterCount}`);
-  console.log(`expected after:          ${expected}`);
-
-  if (afterCount !== expected) {
-    throw new Error(`MINT VERIFICATION FAILED: expected balanceOf ${expected}, got ${afterCount}`);
-  }
-
-  console.log(
-    `OK: encoded pay() minted ${tierIds.length} item(s) to ${PAYER} — balanceOf ${beforeCount} -> ${afterCount}.`,
-  );
+  await runScenario("Scenario 2: 1 wei over exact, allowOverspending: true", {
+    amount: amount + 1n,
+    metadata: overspendMetadata,
+  });
 }
 
 main().catch((err) => {

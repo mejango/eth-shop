@@ -3,6 +3,7 @@ import {
   amountDue,
   cartTotal,
   creditsApplicable,
+  isExactConversion,
   minReturnedTokens,
   roundUp,
   tierIdsToMint,
@@ -135,6 +136,26 @@ describe("pay", () => {
     });
   });
 
+  // wallet-action:shop-purchase — gates whether a shop that requires exact
+  // payment (`preventOverspending`) can be checked out in the selected
+  // token at all; see finding 1 in BuyFlow.tsx.
+  describe("isExactConversion", () => {
+    it("is true when the conversion divides evenly", () => {
+      // 25 * 400_000_000 / 10^18 has no remainder relative to the divisor
+      // used inside toPaymentUnits for this same input.
+      expect(isExactConversion(25n * 10n ** 18n, 400_000_000n, 18)).toBe(true);
+    });
+
+    it("is false when toPaymentUnits would round up", () => {
+      // Same case that forces roundUp inside toPaymentUnits above.
+      expect(isExactConversion(1n, 3n, 1)).toBe(false);
+    });
+
+    it("is true when pricingUnits is 0", () => {
+      expect(isExactConversion(0n, 400_000_000n, 18)).toBe(true);
+    });
+  });
+
   describe("minReturnedTokens", () => {
     it("applies slippage formula: previewTokens*(10000−bps)/10000", () => {
       expect(minReturnedTokens(1000n, 100n)).toBe(990n);
@@ -170,6 +191,11 @@ describe("pay", () => {
 
     it("returns 0 unchanged", () => {
       expect(roundUp(0n, 18)).toBe(0n);
+    });
+
+    it("returns the amount unchanged when decimals is below 2", () => {
+      expect(roundUp(12345n, 1)).toBe(12345n);
+      expect(roundUp(12345n, 0)).toBe(12345n);
     });
   });
 });

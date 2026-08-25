@@ -7,6 +7,7 @@ import {
   amountDue,
   cartTotal,
   creditsApplicable,
+  isExactConversion,
   minReturnedTokens,
   roundUp,
   tierIdsToMint,
@@ -17,14 +18,7 @@ import type { Shop } from "@/lib/types";
 import { explorerBaseUrl, formatWalletError } from "@/lib/utils";
 import { isTransactionReceiptUnavailableError, waitForReceiptWithRetry } from "@/lib/waitForReceipt";
 import { NATIVE_TOKEN, jb721TiersHookAbi } from "@bananapus/nana-sdk-core";
-import {
-  BASE_CURRENCY_ETH,
-  BASE_CURRENCY_USD,
-  build721PayMetadata,
-  buildPayTx,
-  previewPay,
-  resolvePaymentTerminal,
-} from "@bananapus/nana-sdk-core/v6";
+import { build721PayMetadata, buildPayTx, previewPay, resolvePaymentTerminal } from "@bananapus/nana-sdk-core/v6";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -88,10 +82,13 @@ export function BuyFlow({
   const [selectedTokenAddress, setSelectedTokenAddress] = useState<Address | undefined>(
     () => shop.acceptedTokens.find((t) => isNativeToken(t.token))?.token ?? shop.acceptedTokens[0]?.token,
   );
-  const [prepared, setPrepared] = useState<{ preview: { beneficiaryTokenCount: bigint }; before: bigint } | null>(
-    null,
-  );
+  const [prepared, setPrepared] = useState<{ preview: { beneficiaryTokenCount: bigint } } | null>(null);
   const [mintedTokenIds, setMintedTokenIds] = useState<bigint[]>([]);
+  // Synchronous re-entrancy guard for confirm(): React state updates are
+  // batched/async, so a fast double-click could invoke confirm() twice
+  // before `phase` (and the button's disabled prop) re-renders. A ref reads
+  // and writes immediately, closing that window.
+  const submittingRef = useRef(false);
 
   const currentToken = useMemo(
     () => payableTokens?.find((t) => t.token === selectedTokenAddress) ?? payableTokens?.[0],
@@ -103,7 +100,7 @@ export function BuyFlow({
   const tierIds = useMemo(() => tierIdsToMint(lines), [lines]);
   const dueInPricingUnits = useMemo(() => amountDue(lines, creditsBn), [lines, creditsBn]);
 
-  const pricingCurrency = shop.currency === "USD" ? BigInt(BASE_CURRENCY_USD) : BigInt(BASE_CURRENCY_ETH);
+  const pricingCurrency = BigInt(shop.pricingCurrency);
   const {
     pricePerUnit,
     unavailable: priceUnavailable,
@@ -121,14 +118,20 @@ export function BuyFlow({
     return toPaymentUnits(dueInPricingUnits, pricePerUnit, shop.decimals);
   }, [pricePerUnit, currentToken, dueInPricingUnits, shop.decimals]);
 
+  // Always mirrors the shop's own preventOverspending flag, never the
+  // round-up checkbox: the hook ANDs this metadata bit with
+  // `!flagsOf(hook).preventOverspending` (JB721TiersHookLib.prepareMint), so
+  // sending `false` when the shop allows overspending would still revert on
+  // any leftover — and leftover is unavoidable for fractional/discounted/
+  // cross-currency prices or excess credits, independent of round-up.
   const finalMetadata = useMemo((): Hex => {
     if (tierIds.length === 0) return "0x";
     return build721PayMetadata({
       metadataIdTarget: shop.idTarget,
       tierIdsToMint: tierIds,
-      allowOverspending: roundUpChecked && !shop.flags.preventOverspending,
+      allowOverspending: !shop.flags.preventOverspending,
     });
-  }, [tierIds, shop.idTarget, shop.flags.preventOverspending, roundUpChecked]);
+  }, [tierIds, shop.idTarget, shop.flags.preventOverspending]);
 
   const finalPaymentAmount = useMemo(() => {
     if (previewAmountDue === null || !currentToken) return null;
@@ -153,10 +156,35 @@ export function BuyFlow({
     if (!priceLoading && pricePerUnit === undefined && priceUnavailable) {
       return "Couldn't load pricing. Try again.";
     }
+    if (
+      shop.flags.preventOverspending &&
+      !priceLoading &&
+      pricePerUnit !== null &&
+      pricePerUnit !== undefined &&
+      dueInPricingUnits > 0n &&
+      !isExactConversion(dueInPricingUnits, pricePerUnit, shop.decimals)
+    ) {
+      return `This shop requires exact payment and this price can't be matched exactly in ${currentToken.symbol}.`;
+    }
     return null;
-  }, [lines.length, shop.acceptedTokens.length, payableTokens, currentToken, priceLoading, pricePerUnit, priceUnavailable]);
+  }, [
+    lines.length,
+    shop.acceptedTokens.length,
+    shop.flags.preventOverspending,
+    shop.decimals,
+    payableTokens,
+    currentToken,
+    priceLoading,
+    pricePerUnit,
+    priceUnavailable,
+    dueInPricingUnits,
+  ]);
 
-  const { ensureAllowance, getApprovalReceipt } = useAllowance(shop.chainId, { reviewedInParent: true });
+  // No reviewedInParent here: the approval spend (spender + amount + token)
+  // is not shown anywhere in BuyFlow's own checkout screen, so the ERC-20
+  // approve call must run through the reviewed hook's own in-app review
+  // dialog rather than skip it.
+  const { ensureAllowance, getApprovalReceipt } = useAllowance(shop.chainId);
   const { writeContractAsync } = useWriteContract({ reviewedInParent: true });
 
   // Step 1: resolve which accepted tokens actually have a directly-payable
@@ -194,8 +222,9 @@ export function BuyFlow({
 
   // Step 2: once a payable token is selected and priced, take a live preview
   // (of the FULL amount that will actually be sent, including round-up — see
-  // finding 5) and a pre-purchase balance snapshot, then move to the review
-  // phase.
+  // finding 5), then move to the review phase. The balanceOf snapshot used
+  // to verify the purchase is taken later, inside confirm() immediately
+  // before signing (finding 5) — not here, where it could go stale.
   useEffect(() => {
     if (phase !== "preparing") return;
     if (!address || !publicClient) return;
@@ -221,14 +250,8 @@ export function BuyFlow({
           beneficiary: address,
           metadata: finalMetadata,
         });
-        const before = (await publicClient.readContract({
-          address: shop.hook,
-          abi: jb721TiersHookAbi,
-          functionName: "balanceOf",
-          args: [address],
-        })) as bigint;
         if (cancelled) return;
-        setPrepared({ preview, before });
+        setPrepared({ preview });
         setPhase("ready");
       } catch (err) {
         if (cancelled) return;
@@ -239,29 +262,48 @@ export function BuyFlow({
     return () => {
       cancelled = true;
     };
-  }, [phase, address, publicClient, payableTokens, currentToken, priceLoading, finalPaymentAmount, finalMetadata, shop.chainId, shop.hook, projectId]);
+  }, [phase, address, publicClient, payableTokens, currentToken, priceLoading, finalPaymentAmount, finalMetadata, shop.chainId, projectId]);
+
+  // Tracked in a ref (not a dependency of the effect below) so that effect
+  // reacts ONLY to finalPaymentAmount changing — not to every phase
+  // transition. Depending on `phase` there too would re-fire this same
+  // effect the instant confirm()'s catch block sets phase to "ready" and
+  // reports an error, wiping that error back out via setError(null) in the
+  // same tick.
+  const phaseRef = useRef(phase);
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  // The floor shown to the buyer (`prepared.preview.beneficiaryTokenCount`)
+  // must never disagree with the amount actually signed. Reset to
+  // `preparing` whenever the amount that will be sent changes for any
+  // reason — credits resolving late, the round-up checkbox, or a token
+  // switch — so the live preview effect above re-runs against the new
+  // amount (finding 3). Skipped while a transaction is actually in flight
+  // or already resolved; those phases hold their values fixed.
+  useEffect(() => {
+    const current = phaseRef.current;
+    if (IN_FLIGHT.includes(current) || current === "success" || current === "unverified") return;
+    setPrepared(null);
+    setError(null);
+    setPhase("preparing");
+  }, [finalPaymentAmount]);
 
   function selectToken(token: Address) {
     if (phase !== "ready" && phase !== "preparing") return;
     setSelectedTokenAddress(token);
-    setPrepared(null);
-    setError(null);
-    setPhase("preparing");
   }
 
-  // The round-up checkbox changes finalPaymentAmount/finalMetadata, which
-  // feed the live preview above — re-run it so "you'll receive at least"
-  // reflects the amount actually being sent (finding 5).
   function toggleRoundUp(checked: boolean) {
     if (phase !== "ready") return;
     setRoundUpChecked(checked);
-    setPrepared(null);
-    setError(null);
-    setPhase("preparing");
   }
 
   async function confirm() {
+    if (submittingRef.current) return;
     if (!currentToken || !prepared || !address || !publicClient || finalPaymentAmount === null) return;
+    submittingRef.current = true;
     setError(null);
     try {
       // Re-resolve the terminal and re-preview immediately before signing.
@@ -289,6 +331,14 @@ export function BuyFlow({
         beneficiary: address,
         metadata: finalMetadata,
       });
+      // The displayed "you'll receive at least" floor came from `prepared`'s
+      // earlier preview. If the fresh, about-to-be-signed preview has
+      // dropped more than the same 1% slippage tolerance below it, the rate
+      // moved enough that signing now would silently accept a lower floor
+      // than what the buyer reviewed — fail closed instead.
+      if (freshPreview.beneficiaryTokenCount < minReturnedTokens(prepared.preview.beneficiaryTokenCount, SLIPPAGE_BPS)) {
+        throw new Error("The rate moved. Review the updated quote.");
+      }
 
       let approvalBlock: bigint | undefined;
       if (!isNativeToken(currentToken.token)) {
@@ -322,6 +372,16 @@ export function BuyFlow({
         blockNumber: approvalBlock,
       } as unknown as Parameters<typeof publicClient.simulateContract>[0]);
 
+      // Snapshot balanceOf immediately before signing — not during
+      // `preparing`, which can run long before the buyer actually confirms
+      // and go stale (finding 5).
+      const before = (await publicClient.readContract({
+        address: shop.hook,
+        abi: jb721TiersHookAbi,
+        functionName: "balanceOf",
+        args: [address],
+      })) as bigint;
+
       setPhase("signing");
       const hash = await writeContractAsync({
         chainId: shop.chainId,
@@ -348,15 +408,6 @@ export function BuyFlow({
         args: [address],
       })) as bigint;
 
-      if (after <= prepared.before) {
-        // Payment went through but minted nothing — it may have landed as
-        // credits instead (e.g. a sold-out tier mid-flight), so that query
-        // could now be stale even though no NFT arrived.
-        queryClient.invalidateQueries({ queryKey: ["shopCredits", shop.chainId, shop.hook, address] });
-        setPhase("unverified");
-        return;
-      }
-
       const transfers = parseEventLogs({ abi: jb721TiersHookAbi, eventName: "Transfer", logs: receipt.logs });
       const mintedIds = transfers
         .filter(
@@ -364,6 +415,17 @@ export function BuyFlow({
             log.address.toLowerCase() === shop.hook.toLowerCase() && log.args.to.toLowerCase() === address.toLowerCase(),
         )
         .map((log) => log.args.tokenId);
+
+      if (after <= before || mintedIds.length === 0) {
+        // Payment went through but nothing is verifiably minted to this
+        // wallet — either the balance didn't move (it may have landed as
+        // credits instead, e.g. a sold-out tier mid-flight) or it did move
+        // without a decodable Transfer log to show for it. Either way,
+        // never report success for zero verified items.
+        queryClient.invalidateQueries({ queryKey: ["shopCredits", shop.chainId, shop.hook, address] });
+        setPhase("unverified");
+        return;
+      }
 
       queryClient.invalidateQueries({ queryKey: ["ownedCount", shop.chainId, shop.hook, address] });
       queryClient.invalidateQueries({ queryKey: ["shopCredits", shop.chainId, shop.hook, address] });
@@ -380,6 +442,8 @@ export function BuyFlow({
       }
       setPhase("ready");
       setError(formatWalletError(err, "Couldn't complete this purchase."));
+    } finally {
+      submittingRef.current = false;
     }
   }
 

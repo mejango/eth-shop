@@ -59,11 +59,12 @@ export function toPaymentUnits(pricingUnits: bigint, pricePerUnit: bigint, prici
 /**
  * Minimum returned tokens after slippage.
  * Computes previewTokens * (10000 - slippageBps) / 10000.
- * Returns 0 only when previewTokens is 0.
+ * Returns 0 only when previewTokens is 0; floors at 1n for nonzero preview.
  */
 export function minReturnedTokens(previewTokens: bigint, slippageBps: bigint): bigint {
   if (previewTokens === 0n) return 0n;
-  return (previewTokens * (10000n - slippageBps)) / 10000n;
+  const result = (previewTokens * (10000n - slippageBps)) / 10000n;
+  return result > 0n ? result : 1n;
 }
 
 /**

@@ -143,7 +143,7 @@ describe("pay", () => {
     });
 
     it("handles maximum slippage", () => {
-      expect(minReturnedTokens(1000n, 10000n)).toBe(0n);
+      expect(minReturnedTokens(1000n, 10000n)).toBe(1n);
     });
   });
 

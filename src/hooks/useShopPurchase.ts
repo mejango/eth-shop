@@ -3,20 +3,16 @@
 import { resolvePaymentTerminal } from "@bananapus/nana-sdk-core/v6";
 import { getJBContractAddress, JBCoreContracts, jb721TiersHookAbi, jbPricesAbi, type JBChainId } from "@bananapus/nana-sdk-core";
 import { useQuery } from "@tanstack/react-query";
-import { type Address, ContractFunctionRevertedError, HttpRequestError } from "viem";
+import { type Address, BaseError, ContractFunctionRevertedError } from "viem";
 import { usePublicClient } from "wagmi";
 
 /**
  * Classify a price read error to determine the cause.
- * ContractFunctionRevertedError means no price feed is available.
- * HttpRequestError or other errors mean the RPC is unavailable.
+ * A revert (in the cause chain) means no price feed. Transport errors mean unavailable.
  */
 export function classifyPriceError(error: unknown): "no-feed" | "unavailable" {
-  if (error instanceof ContractFunctionRevertedError) {
+  if (error instanceof BaseError && error.walk((cause) => cause instanceof ContractFunctionRevertedError) !== null) {
     return "no-feed";
-  }
-  if (error instanceof HttpRequestError) {
-    return "unavailable";
   }
   return "unavailable";
 }
@@ -24,10 +20,14 @@ export function classifyPriceError(error: unknown): "no-feed" | "unavailable" {
 /**
  * Read the credit balance for a wallet from a 721 tiers hook.
  */
-export function useShopCredits(chainId: JBChainId | undefined, hookAddress: Address | undefined, walletAddress: Address | undefined) {
+export function useShopCredits(
+  chainId: JBChainId | undefined,
+  hookAddress: Address | undefined,
+  walletAddress: Address | undefined,
+) {
   const publicClient = usePublicClient({ chainId });
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ["shopCredits", chainId, hookAddress, walletAddress],
     queryFn: async () => {
       if (!hookAddress || !walletAddress || !publicClient) {
@@ -45,6 +45,13 @@ export function useShopCredits(chainId: JBChainId | undefined, hookAddress: Addr
     },
     enabled: !!(chainId && hookAddress && walletAddress && publicClient),
   });
+
+  return {
+    credits: query.data,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
 }
 
 /**
@@ -57,10 +64,10 @@ export function useCheckoutTerminal(
 ) {
   const publicClient = usePublicClient({ chainId });
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ["checkoutTerminal", chainId, projectId, token],
     queryFn: async () => {
-      if (!chainId || !projectId || !token || !publicClient) {
+      if (!chainId || projectId === undefined || !token || !publicClient) {
         throw new Error("Missing required parameters");
       }
 
@@ -72,8 +79,16 @@ export function useCheckoutTerminal(
 
       return terminal;
     },
-    enabled: !!(chainId && projectId && token && publicClient),
+    enabled: !!(chainId && projectId !== undefined && token && publicClient),
   });
+
+  return {
+    terminal: query.data?.address,
+    isRouter: query.data?.isRouter,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
 }
 
 /**
@@ -88,48 +103,69 @@ export function usePricePerUnit(
 ) {
   const publicClient = usePublicClient({ chainId });
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ["pricePerUnit", chainId, projectId, payCurrency, pricingCurrency, payDecimals],
     queryFn: async () => {
-      if (!chainId || !projectId || payCurrency === undefined || pricingCurrency === undefined || payDecimals === undefined || !publicClient) {
+      if (
+        !chainId ||
+        projectId === undefined ||
+        payCurrency === undefined ||
+        pricingCurrency === undefined ||
+        payDecimals === undefined ||
+        !publicClient
+      ) {
         throw new Error("Missing required parameters");
       }
 
       // Same currency means 1:1 with the target decimals
       if (payCurrency === pricingCurrency) {
-        return { pricePerUnit: 10n ** BigInt(payDecimals), unavailable: false };
+        return 10n ** BigInt(payDecimals);
       }
 
-      try {
-        const jbPricesAddress = getJBContractAddress(JBCoreContracts.JBPrices, 6, chainId);
+      const jbPricesAddress = getJBContractAddress(JBCoreContracts.JBPrices, 6, chainId);
 
-        const pricePerUnit = await publicClient.readContract({
-          address: jbPricesAddress,
-          abi: jbPricesAbi,
-          functionName: "pricePerUnitOf",
-          args: [projectId, payCurrency, pricingCurrency, BigInt(payDecimals)],
-        });
+      const pricePerUnit = await publicClient.readContract({
+        address: jbPricesAddress,
+        abi: jbPricesAbi,
+        functionName: "pricePerUnitOf",
+        args: [projectId, payCurrency, pricingCurrency, BigInt(payDecimals)],
+      });
 
-        return { pricePerUnit: pricePerUnit as bigint, unavailable: false };
-      } catch (error) {
-        const classification = classifyPriceError(error);
-        if (classification === "no-feed") {
-          return { pricePerUnit: null, unavailable: false };
-        }
-        return { pricePerUnit: null, unavailable: true };
-      }
+      return pricePerUnit as bigint;
     },
-    enabled: !!(chainId && projectId !== undefined && payCurrency !== undefined && pricingCurrency !== undefined && payDecimals !== undefined && publicClient),
+    enabled:
+      !!(
+        chainId &&
+        projectId !== undefined &&
+        payCurrency !== undefined &&
+        pricingCurrency !== undefined &&
+        payDecimals !== undefined &&
+        publicClient
+      ),
   });
+
+  const classification = query.error ? classifyPriceError(query.error) : undefined;
+
+  return {
+    pricePerUnit: query.data ?? (query.error && classification === "no-feed" ? null : undefined),
+    unavailable: classification === "unavailable",
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
 }
 
 /**
  * Read the NFT balance owned by a wallet from a 721 tiers hook.
  */
-export function useOwnedCount(chainId: JBChainId | undefined, hookAddress: Address | undefined, walletAddress: Address | undefined) {
+export function useOwnedCount(
+  chainId: JBChainId | undefined,
+  hookAddress: Address | undefined,
+  walletAddress: Address | undefined,
+) {
   const publicClient = usePublicClient({ chainId });
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ["ownedCount", chainId, hookAddress, walletAddress],
     queryFn: async () => {
       if (!hookAddress || !walletAddress || !publicClient) {
@@ -147,4 +183,11 @@ export function useOwnedCount(chainId: JBChainId | undefined, hookAddress: Addre
     },
     enabled: !!(chainId && hookAddress && walletAddress && publicClient),
   });
+
+  return {
+    count: query.data,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
 }

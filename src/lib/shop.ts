@@ -1,12 +1,13 @@
 import "server-only";
 import { getJBContractAddress, isContractRevertError, RevnetCoreContracts, type JBChainId } from "@bananapus/nana-sdk-core";
-import { decode721RulesetMetadata, getCurrentRuleset, getProject721Shop, parseTierMetadataJson, tierDisplayMetadata, tierMediaImageUrl } from "@bananapus/nana-sdk-core/v6";
+import { decode721RulesetMetadata, getCurrentRuleset, getProject721Shop, parseTierMetadataJson, tierDisplayMetadata, tierMediaImageUrl, type Project721Tier } from "@bananapus/nana-sdk-core/v6";
 import type { Address } from "viem";
 import { bendystraw } from "./bendystraw";
 import { publicClientFor } from "./chains";
 import { handleFor, projectOwner } from "./handles";
 import { currencyOf, mapItem, type TierMeta } from "./items";
 import { slugFor } from "./slug";
+import { readAllActiveTiers } from "./tiers";
 import type { Item, Shop } from "./types";
 
 const GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY ?? "https://juicebox.center/ipfs/";
@@ -150,21 +151,54 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
     }),
   ]);
   const isRevnet = isRevnetFor(ownerProbe, revOwnerAddress(chainId), bendy?.isRevnet ?? false);
-  const sdk = await getProject721Shop(client, { chainId, projectId, isRevnet, tierLimit: 1000 });
+  // tierLimit: 1 — this call resolves the hook/store/metadataIdTarget/pricing
+  // only. Tiers are read separately below with includeResolvedUri: false: a
+  // large tier set of inline data-URI metadata (e.g. Banny's 68 inline-SVG
+  // tiers) makes the upstream RPC reject tiersOf's includeResolvedUri: true
+  // outright, and this app never needs the on-chain resolved URI anyway —
+  // media is sourced from Bendystraw (mergeTierMeta below).
+  const sdk = await getProject721Shop(client, { chainId, projectId, isRevnet, tierLimit: 1 });
   if (!sdk) return null;
   // getProject721Shop only resolves a hook for a project that exists, so the
   // revert-tolerant probe above must have succeeded; re-probing only covers
   // the type, not a real code path.
   const owner = ownerProbe ?? (await projectOwner(chainId, projectId));
 
-  const [rulesetWithMetadata, flags, handle] = await Promise.all([
+  const [rulesetWithMetadata, flags, handle, rawTiers] = await Promise.all([
     getCurrentRuleset(client, { chainId, projectId }),
     client.readContract({ address: sdk.store, abi: storeFlagsAbi, functionName: "flagsOf", args: [sdk.hook] }),
     handleFor(chainId, projectId),
+    readAllActiveTiers(client, sdk.store, sdk.hook),
   ]);
   const app = decode721RulesetMetadata(rulesetWithMetadata.metadata.metadata);
   const hookRow = bendy?.nftHooks.items.find((h) => h.address.toLowerCase() === sdk.hook.toLowerCase());
-  const meta = mergeTierMeta(hookRow?.nftTiers.items ?? []);
+  const bendyTierById = new Map((hookRow?.nftTiers.items ?? []).map((r) => [r.tierId, r]));
+  const activeTiers = rawTiers.filter((t) => t.initialSupply > 0);
+  // On-chain flags and reserveBeneficiary are authoritative; Bendystraw only
+  // fills display metadata (name/description/image) for the same tier id.
+  const meta = mergeTierMeta(
+    activeTiers.map((t) => ({
+      tierId: t.id,
+      metadata: bendyTierById.get(t.id)?.metadata ?? null,
+      resolvedUri: bendyTierById.get(t.id)?.resolvedUri ?? null,
+      allowOwnerMint: t.flags.allowOwnerMint,
+      transfersPausable: t.flags.transfersPausable,
+      cannotBeRemoved: t.flags.cantBeRemoved,
+      reserveBeneficiary: t.reserveBeneficiary,
+    })),
+  );
+  const tiers: Project721Tier[] = activeTiers.map((t) => ({
+    id: t.id,
+    price: t.price,
+    remainingSupply: t.remainingSupply,
+    initialSupply: t.initialSupply,
+    votingUnits: t.votingUnits,
+    reserveFrequency: t.reserveFrequency,
+    category: t.category,
+    discountPercent: t.discountPercent,
+    encodedIpfsUri: t.encodedIpfsUri,
+    resolvedUri: "",
+  }));
   const pm = (bendy?.metadata ?? {}) as { name?: string; description?: string; logoUri?: string; projectTagline?: string; ethShop?: { tagline?: string } };
   const currency = currencyOf(sdk.pricing);
   const slug = slugFor(chainId, projectId);
@@ -192,8 +226,6 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
     },
     owner,
   };
-  const items = sdk.tiers
-    .filter((t) => t.initialSupply > 0)
-    .map((t) => mapItem({ shopSlug: slug, tier: t, meta: meta.get(t.id), currency, decimals: sdk.pricing.decimals }));
+  const items = tiers.map((t) => mapItem({ shopSlug: slug, tier: t, meta: meta.get(t.id), currency, decimals: sdk.pricing.decimals }));
   return { shop, items };
 }

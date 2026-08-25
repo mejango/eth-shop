@@ -152,11 +152,14 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
   ]);
   const isRevnet = isRevnetFor(ownerProbe, revOwnerAddress(chainId), bendy?.isRevnet ?? false);
   // tierLimit: 1 — this call resolves the hook/store/metadataIdTarget/pricing
-  // only. Tiers are read separately below with includeResolvedUri: false: a
-  // large tier set of inline data-URI metadata (e.g. Banny's 68 inline-SVG
-  // tiers) makes the upstream RPC reject tiersOf's includeResolvedUri: true
-  // outright, and this app never needs the on-chain resolved URI anyway —
-  // media is sourced from Bendystraw (mergeTierMeta below).
+  // (and, for non-revnets, the ruleset it read to find the hook) only. Tiers
+  // are read separately below via the pager, not sdk.tiers: Project721Tier
+  // carries neither the on-chain flags (allowOwnerMint/transfersPausable/
+  // cantBeRemoved) nor reserveBeneficiary that this app needs, and a large
+  // tier set of inline data-URI metadata (e.g. Banny's 68 inline-SVG tiers)
+  // makes the upstream RPC reject tiersOf's includeResolvedUri: true outright
+  // — this app never needs the on-chain resolved URI anyway, since media is
+  // sourced from Bendystraw (mergeTierMeta below).
   const sdk = await getProject721Shop(client, { chainId, projectId, isRevnet, tierLimit: 1 });
   if (!sdk) return null;
   // getProject721Shop only resolves a hook for a project that exists, so the
@@ -164,8 +167,12 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
   // the type, not a real code path.
   const owner = ownerProbe ?? (await projectOwner(chainId, projectId));
 
+  // sdk.ruleset is the ruleset getProject721Shop already read to resolve the
+  // hook, for every non-revnet project — reuse it instead of a second
+  // currentRulesetOf call. It's null only for revnets, whose hook comes from
+  // REVOwner without a ruleset read, so getCurrentRuleset is still needed there.
   const [rulesetWithMetadata, flags, handle, rawTiers] = await Promise.all([
-    getCurrentRuleset(client, { chainId, projectId }),
+    sdk.ruleset ? Promise.resolve(sdk.ruleset) : getCurrentRuleset(client, { chainId, projectId }),
     client.readContract({ address: sdk.store, abi: storeFlagsAbi, functionName: "flagsOf", args: [sdk.hook] }),
     handleFor(chainId, projectId),
     readAllActiveTiers(client, sdk.store, sdk.hook),

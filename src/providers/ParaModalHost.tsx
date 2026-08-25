@@ -202,7 +202,7 @@ export default function ParaModalHost({
             mode: "light",
             backgroundColor: "#ffffff",
             foregroundColor: "#0e0e0e",
-            accentColor: "#2743ff",
+            accentColor: "#0b7285",
             font: "JetBrains Mono",
             borderRadius: "none",
           },

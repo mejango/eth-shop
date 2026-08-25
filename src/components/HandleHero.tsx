@@ -23,7 +23,7 @@ export function HandleHero() {
           onChange={(e) => setHandle(e.target.value)}
           placeholder="you"
           aria-label="Your shop handle"
-          className="min-w-[5ch] flex-1 border-b-2 border-ink bg-transparent px-0 py-1 outline-none placeholder:text-shelf-deep focus:border-accent"
+          className="min-w-[5ch] flex-1 border-b-2 border-ink font-mono bg-transparent px-0 py-1 outline-none placeholder:text-shelf-deep focus:border-accent"
           style={{ width: `${Math.max(h.length, 3) + 1}ch` }}
         />
       </label>

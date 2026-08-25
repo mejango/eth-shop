@@ -55,13 +55,40 @@ export function More({
   children: React.ReactNode;
 }) {
   return (
-    <details className="group border-t border-shelf-deep pt-3">
+    <details className="group pt-1">
       <summary className="cursor-pointer list-none text-sm text-mute select-none hover:text-ink">
         <span className="inline-block w-4 transition-transform group-open:rotate-90">▸</span>{" "}
         {label}
       </summary>
       <div className="mt-5 space-y-6">{children}</div>
     </details>
+  );
+}
+
+export function PillsMulti<T extends string>({
+  values,
+  options,
+  onToggle,
+}: {
+  values: T[];
+  options: [T, string][];
+  onToggle: (v: T) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map(([v, label]) => {
+        const on = values.includes(v);
+        return (
+          <label
+            key={v}
+            className={`cursor-pointer rounded-full border px-4 py-2 text-sm ${on ? "border-ink bg-ink text-paper" : "border-shelf-deep hover:border-ink"}`}
+          >
+            <input type="checkbox" className="sr-only" checked={on} onChange={() => onToggle(v)} />
+            {label}
+          </label>
+        );
+      })}
+    </div>
   );
 }
 

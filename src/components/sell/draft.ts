@@ -28,7 +28,7 @@ export type ShopDraft = {
   tagline: string;
   about: string;
   logo: string;
-  chain: "base" | "eth" | "op" | "arb";
+  chains: ("base" | "eth" | "op" | "arb")[];
   currency: "ETH" | "USD";
   collectionName: string;
   symbol: string;
@@ -71,7 +71,7 @@ export const blankShop = (handle = ""): ShopDraft => ({
   tagline: "",
   about: "",
   logo: "",
-  chain: "base",
+  chains: ["base", "eth", "op", "arb"],
   currency: "ETH",
   collectionName: "",
   symbol: "",
@@ -87,7 +87,7 @@ export const blankShop = (handle = ""): ShopDraft => ({
   opDiscounts: true,
 });
 
-export const CHAINS: Record<ShopDraft["chain"], string> = {
+export const CHAINS: Record<ShopDraft["chains"][number], string> = {
   base: "Base",
   eth: "Ethereum",
   op: "Optimism",

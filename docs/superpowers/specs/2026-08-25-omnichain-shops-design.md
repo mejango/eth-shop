@@ -42,3 +42,11 @@ raw price so merged cards can't diverge), account-page merge.
 - merge: identical tiers on 4 chains → 1 item, summed supply; unlimited beats sum;
   divergent price/name/image → separate items; single-chain → untouched items, no `chains`.
 - chain options: cart with items on {ETH, Base} ∩ {ETH} → only ETH offered.
+
+## Phase 3 addendum (jango, 2026-08-26)
+
+Opening a shop on multiple chains (the /sell chain picker now multi-selects, default ALL)
+must deploy via Relayr: one signature fans out the launch across every selected chain and
+wires the suckers, same pattern as revnet.money / juicebox.money omnichain launches. The
+current "Open shop" button is still the prototype (no transaction); build the launch
+encoder + Relayr path together in Phase 3.

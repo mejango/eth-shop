@@ -1,10 +1,9 @@
 "use client";
-import Link from "next/link";
 import { useState } from "react";
 import { Art } from "./ItemCard";
 import { CHAINS, blankItem, blankShop, type ItemDraft, type ShopDraft } from "./sell/draft";
 import { ItemFields } from "./sell/ItemFields";
-import { Check, Field, More, Pills, field } from "./sell/ui";
+import { Check, Field, More, Pills, PillsMulti, field } from "./sell/ui";
 import { formatPrice } from "@/lib/items";
 import type { Currency } from "@/lib/types";
 import { parseUnits } from "viem";
@@ -61,7 +60,7 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
                 required
                 value={shop.handle}
                 onChange={(e) => setS({ handle: clean(e.target.value) })}
-                className={`${field} text-2xl`}
+                className={`${field} font-mono text-2xl`}
                 placeholder="you"
               />
             </span>
@@ -107,12 +106,19 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
               </div>
             </div>
             <fieldset>
-              <legend className="mb-2 text-sm text-mute">Chain</legend>
-              <Pills
-                name="chain"
-                value={shop.chain}
-                options={Object.entries(CHAINS) as [ShopDraft["chain"], string][]}
-                onChange={(chain) => setS({ chain })}
+              <legend className="mb-2 text-sm text-mute">Chains</legend>
+              <PillsMulti
+                values={shop.chains}
+                options={Object.entries(CHAINS) as [ShopDraft["chains"][number], string][]}
+                onToggle={(c) =>
+                  setS({
+                    chains: shop.chains.includes(c)
+                      ? shop.chains.length > 1
+                        ? shop.chains.filter((x) => x !== c)
+                        : shop.chains
+                      : [...shop.chains, c],
+                  })
+                }
               />
             </fieldset>
             <fieldset>
@@ -319,17 +325,11 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
               type="button"
               className="rounded-full bg-accent px-6 py-3 text-ink hover:bg-accent-ink"
             >
-              Open shop on {CHAINS[shop.chain]}
+              {shop.chains.length === 1
+                ? `Open shop on ${CHAINS[shop.chains[0]]}`
+                : `Open shop on ${shop.chains.length} chains`}
             </button>
           </div>
-          <p className="mt-4 text-xs text-mute">
-            Opening a shop launches a Juicebox project with a 721 hook. You&apos;ll sign one
-            transaction.{" "}
-            <Link href="/tea" className="underline">
-              See a finished shop
-            </Link>
-            .
-          </p>
         </div>
       )}
     </div>

@@ -1,0 +1,93 @@
+{
+  "format": "eth-shop-wallet-write-sites-1",
+  "surfaces": [
+    {
+      "id": "central-write",
+      "label": "Central direct and Safe write boundary",
+      "sites": [
+        [
+          "raw-wallet-import",
+          "src/hooks/useReviewedWriteContract.ts",
+          "<module>",
+          "wagmi:useWriteContract",
+          1
+        ],
+        [
+          "raw-wallet-hook",
+          "src/hooks/useReviewedWriteContract.ts",
+          "useWriteContract",
+          "useWriteContract",
+          1
+        ],
+        [
+          "reviewed-write",
+          "src/hooks/useReviewedWriteContract.ts",
+          "writeContract",
+          "writeContractAsync",
+          1
+        ],
+        [
+          "raw-wallet-call",
+          "src/hooks/useReviewedWriteContract.ts",
+          "submitReviewedCall",
+          "writeContractAsync",
+          1
+        ]
+      ]
+    },
+    {
+      "id": "shop-purchase",
+      "label": "Shop purchase and token approval",
+      "sites": [
+        [
+          "reviewed-write-hook",
+          "src/components/shop/BuyFlow.tsx",
+          "BuyFlow",
+          "useWriteContract",
+          1
+        ],
+        [
+          "reviewed-write",
+          "src/components/shop/BuyFlow.tsx",
+          "confirm",
+          "writeContractAsync",
+          1
+        ],
+        [
+          "reviewed-write-hook",
+          "src/hooks/useAllowance.ts",
+          "useAllowance",
+          "useWriteContract",
+          1
+        ],
+        [
+          "reviewed-write",
+          "src/hooks/useAllowance.ts",
+          "ensureAllowance",
+          "writeContractAsync",
+          1
+        ]
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "reviewed-write-boundary",
+      "risk": "boundary",
+      "files": ["src/hooks/useReviewedWriteContract.ts"],
+      "tests": ["test/pay.test.ts"]
+    },
+    {
+      "id": "shop-purchase",
+      "risk": "money",
+      "files": ["src/components/shop/BuyFlow.tsx"],
+      "tests": ["test/pay.test.ts"]
+    },
+    {
+      "id": "token-approval",
+      "risk": "money",
+      "files": ["src/hooks/useAllowance.ts"],
+      "tests": ["test/pay.test.ts"]
+    }
+  ]
+}

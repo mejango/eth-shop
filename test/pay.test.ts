@@ -10,6 +10,12 @@ import {
   type CartLine,
 } from "@/lib/pay";
 
+// wallet-action:shop-purchase — these pure functions compute the exact
+// amount, tier ids, and slippage floor that src/components/shop/BuyFlow.tsx
+// sends into the reviewed writeContractAsync(pay) call in `confirm`.
+// wallet-action:token-approval — `amountDue`/`toPaymentUnits`/`roundUp` also
+// produce the spend amount src/hooks/useAllowance.ts's `ensureAllowance`
+// approves before that same purchase, when the accepted token isn't native.
 describe("pay", () => {
   describe("cartTotal", () => {
     it("sums effectivePrice * qty for all lines", () => {

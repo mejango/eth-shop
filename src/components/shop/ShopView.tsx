@@ -108,8 +108,10 @@ export function ShopView({
             <h1 className="display text-4xl font-extrabold sm:text-6xl">{shop.name}</h1>
             <p className="mt-2 text-lg">{shop.tagline}</p>
             {shops.length > 1 && (
-              <p className="mt-1 font-mono text-xs text-mute">
-                On {shops.map((s) => chainLabel(s.chainId)).join(", ")}
+              <p className="mt-2 flex items-center gap-1.5">
+                {shops.map((s) => (
+                  <ChainMark key={s.chainId} chainId={s.chainId} />
+                ))}
               </p>
             )}
             {shop.about && (
@@ -117,16 +119,6 @@ export function ShopView({
             )}
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              className={`${ghost} font-mono`}
-              onClick={() =>
-                navigator.clipboard?.writeText(`https://eth.shop/${shop.handle ?? shop.slug}`)
-              }
-              title="Copy link"
-            >
-              eth.shop/{shop.handle ?? shop.slug}
-            </button>
             {demo && (
               <button
                 type="button"
@@ -246,7 +238,7 @@ export function ShopView({
             ) : (
               <Art hue={(openItem.tierId * 47) % 360} className="h-full" />
             )}
-            <div className="flex flex-col bg-shelf p-6">
+            <div className="flex flex-col bg-shelf-light p-6">
               <p className="font-mono text-xs text-mute">
                 eth.shop/{shop.handle ?? shop.slug} / {openItem.categoryName}
               </p>
@@ -456,6 +448,25 @@ export function ShopView({
   );
 }
 
+
+
+const CHAIN_LOGOS: Record<number, string> = {
+  1: "/assets/chains/mainnet.svg",
+  11155111: "/assets/chains/mainnet.svg",
+  10: "/assets/chains/optimism.svg",
+  11155420: "/assets/chains/optimism.svg",
+  8453: "/assets/chains/base.svg",
+  84532: "/assets/chains/base.svg",
+  42161: "/assets/chains/arbitrum.svg",
+  421614: "/assets/chains/arbitrum.svg",
+};
+
+function ChainMark({ chainId, className = "h-4 w-4" }: { chainId: number; className?: string }) {
+  const src = CHAIN_LOGOS[chainId];
+  if (!src) return <span className="font-mono text-xs">{chainLabel(chainId)}</span>;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt={chainLabel(chainId)} title={chainLabel(chainId)} className={`inline-block ${className}`} />;
+}
 
 function shortAddress(a: string): string {
   return a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a;

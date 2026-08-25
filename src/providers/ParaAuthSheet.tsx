@@ -551,7 +551,7 @@ export default function ParaAuthSheet({
             ) : null}
             <a
               href={pairingUri}
-              className="mt-2 flex h-10 items-center justify-center bg-accent text-sm font-medium text-paper no-underline hover:bg-accent-ink"
+              className="mt-2 flex h-10 items-center justify-center bg-accent text-sm font-medium text-ink no-underline hover:bg-accent-ink"
             >
               Open in wallet app
             </a>

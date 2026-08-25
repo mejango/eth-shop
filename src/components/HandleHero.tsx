@@ -30,7 +30,7 @@ export function HandleHero() {
       <div className="mt-6 flex flex-wrap items-center gap-4">
         <Link
           href={`/sell${h ? `?handle=${h}` : ""}`}
-          className="rounded-full bg-accent px-6 py-3 text-lg font-medium text-paper hover:bg-accent-ink"
+          className="rounded-full bg-accent px-6 py-3 text-lg font-medium text-ink hover:bg-accent-ink"
         >
           {h ? `Open eth.shop/${h}` : "Open a shop"}
         </Link>

@@ -317,7 +317,7 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
             </button>
             <button
               type="button"
-              className="rounded-full bg-accent px-6 py-3 text-paper hover:bg-accent-ink"
+              className="rounded-full bg-accent px-6 py-3 text-ink hover:bg-accent-ink"
             >
               Open shop on {CHAINS[shop.chain]}
             </button>

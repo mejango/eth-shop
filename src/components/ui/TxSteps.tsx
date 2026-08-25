@@ -48,7 +48,7 @@ export function TxSteps({
                 activeIndex === index
                   ? "border-accent bg-shelf text-ink"
                   : activeIndex > index
-                    ? "border-accent bg-accent text-paper"
+                    ? "border-accent bg-accent text-ink"
                     : "border-shelf-deep text-mute"
               }`}
             >
@@ -102,7 +102,7 @@ export function TxStep({
         aria-hidden="true"
         className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium ${
           complete
-            ? "border-accent bg-accent text-paper"
+            ? "border-accent bg-accent text-ink"
             : active
               ? "border-accent bg-shelf text-ink"
               : "border-shelf-deep text-mute"

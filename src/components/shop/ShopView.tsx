@@ -23,7 +23,7 @@ type Extras = Record<
   { reservePending?: number; noCredits?: boolean; splitPercent?: number; splitTo?: string }
 >;
 const btn = "rounded-full px-4 py-2 text-sm font-medium";
-const primary = `${btn} bg-accent text-paper hover:bg-accent-ink disabled:bg-shelf-deep disabled:text-mute`;
+const primary = `${btn} bg-accent text-ink hover:bg-accent-ink disabled:bg-shelf-deep disabled:text-mute`;
 const ghost = `${btn} border border-ink hover:bg-shelf disabled:border-shelf-deep disabled:text-mute`;
 const fmt = (n: number) => +n.toPrecision(4);
 

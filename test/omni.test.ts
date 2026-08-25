@@ -121,3 +121,18 @@ describe("no chain can fill", () => {
     expect(availableChainIds([{ item: merged[0], qty: 2 }], shops, 1)).toEqual([]);
   });
 });
+
+describe("same-chain content twins", () => {
+  it("never merges two tiers from the same catalog", () => {
+    const merged = mergeCatalogs([
+      { shop: shopOn(8453), items: [item({ tierId: 1 }), item({ tierId: 2 })] },
+      { shop: shopOn(1), items: [item({ tierId: 1 })] },
+    ]);
+    expect(merged).toHaveLength(2);
+    expect(merged[0].chains).toEqual([
+      { chainId: 8453, tierId: 1, remaining: 5 },
+      { chainId: 1, tierId: 1, remaining: 5 },
+    ]);
+    expect(merged[1].chains).toEqual([{ chainId: 8453, tierId: 2, remaining: 5 }]);
+  });
+});

@@ -1,5 +1,5 @@
 import "server-only";
-import { getJBContractAddress, isContractRevertError, NATIVE_TOKEN, RevnetCoreContracts, USDC_ADDRESSES, type JBChainId } from "@bananapus/nana-sdk-core";
+import { decodeEncodedIpfsUri, getJBContractAddress, isContractRevertError, NATIVE_TOKEN, RevnetCoreContracts, USDC_ADDRESSES, type JBChainId } from "@bananapus/nana-sdk-core";
 import { decode721RulesetMetadata, getAccountingContexts, getCurrentRuleset, getProject721Shop, parseTierMetadataJson, tierDisplayMetadata, tierMediaImageUrl, type Project721Tier } from "@bananapus/nana-sdk-core/v6";
 import type { Address } from "viem";
 import { bendystraw } from "./bendystraw";
@@ -8,7 +8,7 @@ import { handleFor, projectOwner } from "./handles";
 import { currencyOf, mapItem, type TierMeta } from "./items";
 import { slugFor } from "./slug";
 import { mergeCatalogs } from "./omni";
-import { readAllActiveTiers, readResolvedTierUris } from "./tiers";
+import { readAllActiveTiers, readResolvedTierUris, RESOLVED_TIER_FETCH_CAP } from "./tiers";
 import type { Item, Shop } from "./types";
 
 // `||` on purpose: the Dockerfile materializes unset build args as empty strings, which `??` misses.
@@ -244,6 +244,43 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
         categoryName: existing.categoryName || patch.categoryName,
       });
     }
+  }
+  // Last resort for shops Bendystraw hasn't parsed metadata for and whose hook has
+  // no resolver: decode each tier's own encodedIpfsUri and fetch the JSON from the
+  // gateway (bounded, best-effort).
+  const stillMissing = activeTiers.filter((t) => !meta.get(t.id)?.image);
+  if (stillMissing.length > 0) {
+    await Promise.all(
+      stillMissing.slice(0, RESOLVED_TIER_FETCH_CAP).map(async (t) => {
+        try {
+          if (!t.encodedIpfsUri || /^0x0+$/.test(t.encodedIpfsUri)) return;
+          const cid = decodeEncodedIpfsUri(t.encodedIpfsUri);
+          if (!cid) return;
+          const res = await fetch(GATEWAY + String(cid).replace("ipfs://", ""), {
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!res.ok) return;
+          const json = (await res.json()) as Record<string, unknown>;
+          if (!json || typeof json !== "object") return;
+          const display = tierDisplayMetadata(json, GATEWAY);
+          const image = resolvedMediaUrl(display.image);
+          if (!image) return;
+          const existing = meta.get(t.id);
+          meta.set(t.id, {
+            ...(existing ?? {}),
+            ...{
+              image,
+              animationUrl: existing?.animationUrl ?? resolvedMediaUrl(display.animationUrl),
+              name: existing?.name || display.name,
+              description: existing?.description || display.description,
+              categoryName: existing?.categoryName || display.categoryName,
+            },
+          });
+        } catch (error) {
+          console.warn("tier ipfs metadata fetch failed", { tierId: t.id, error });
+        }
+      }),
+    );
   }
   // A tier with no metadata at all falls back to "Category N"; if a sibling in the
   // same category id has a real name, adopt it so the catalog doesn't split one

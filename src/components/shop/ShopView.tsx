@@ -242,11 +242,11 @@ export function ShopView({
             {openItem.image ? (
               // Same CSP-restricted sources as ItemCard (IPFS gateway + data: URIs).
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={openItem.image} alt="" className="h-full w-full bg-shelf object-contain" />
+              <img src={openItem.image} alt="" className="h-full w-full bg-paper object-contain" />
             ) : (
               <Art hue={(openItem.tierId * 47) % 360} className="h-full" />
             )}
-            <div className="flex flex-col p-6">
+            <div className="flex flex-col bg-shelf p-6">
               <p className="font-mono text-xs text-mute">
                 eth.shop/{shop.handle ?? shop.slug} / {openItem.categoryName}
               </p>
@@ -445,7 +445,7 @@ export function ShopView({
 }
 
 function Badge({ children }: { children: React.ReactNode }) {
-  return <li className="rounded-full bg-shelf px-2.5 py-1">{children}</li>;
+  return <li className="rounded-full bg-paper px-2.5 py-1">{children}</li>;
 }
 
 function Dialog({

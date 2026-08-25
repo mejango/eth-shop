@@ -117,21 +117,13 @@ export function ShopView({
               </p>
             )}
             {shop.about && (
-              <div className="mt-3 max-w-xl text-sm text-mute">
-                <ProjectRichText
-                  className={`rich-text ${aboutOpen ? "" : "line-clamp-2"}`}
-                  source={shop.about}
-                />
-                {shop.about.length > 160 && (
-                  <button
-                    type="button"
-                    className="mt-1 text-xs text-mute underline hover:text-ink"
-                    onClick={() => setAboutOpen((o) => !o)}
-                  >
-                    {aboutOpen ? "less" : "more"}
-                  </button>
-                )}
-              </div>
+              <button
+                type="button"
+                className="mt-3 text-sm text-mute underline hover:text-ink"
+                onClick={() => setAboutOpen(true)}
+              >
+                About
+              </button>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -196,6 +188,15 @@ export function ShopView({
             ))}
           </section>
         </>
+      )}
+
+      {aboutOpen && shop.about && (
+        <Dialog onClose={() => setAboutOpen(false)} sheer>
+          <div className="mx-auto flex min-h-full max-w-2xl flex-col justify-center px-6 py-16">
+            <h2 className="display text-3xl font-extrabold">{shop.name}</h2>
+            <ProjectRichText className="rich-text mt-5 text-base" source={shop.about} />
+          </div>
+        </Dialog>
       )}
 
       {/* Cart bar */}
@@ -524,10 +525,13 @@ function Dialog({
   children,
   onClose,
   wide,
+  sheer,
 }: {
   children: React.ReactNode;
   onClose: () => void;
   wide?: boolean;
+  /** Full-screen translucent scrim; content floats over the blurred page. */
+  sheer?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -538,7 +542,11 @@ function Dialog({
       ref={ref}
       onClose={onClose}
       onClick={(e) => e.target === ref.current && ref.current.close()}
-      className={`m-auto ${wide ? "w-[min(92vw,56rem)]" : "w-[min(92vw,28rem)]"} rounded-md bg-paper p-0 backdrop:bg-ink/60`}
+      className={
+        sheer
+          ? "m-0 h-dvh max-h-none w-screen max-w-none bg-paper/90 p-0 backdrop-blur-sm backdrop:bg-transparent"
+          : `m-auto ${wide ? "w-[min(92vw,56rem)]" : "w-[min(92vw,28rem)]"} rounded-md bg-paper p-0 backdrop:bg-ink/60`
+      }
     >
       {children}
       <button

@@ -55,7 +55,7 @@ if (phase === "build") {
   try {
     const siteOrigin = new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "").origin;
     if (siteOrigin === PRODUCTION_SITE_ORIGIN && process.env.NEXT_PUBLIC_PARA_ENV !== "PROD") {
-      errors.push("NEXT_PUBLIC_PARA_ENV must be PROD for the production Revnet origin");
+      errors.push("NEXT_PUBLIC_PARA_ENV must be PROD for the production eth.shop origin");
     }
   } catch {
     // The ordinary URL validator above reports the malformed or absent value.

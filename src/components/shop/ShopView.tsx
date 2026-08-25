@@ -109,6 +109,7 @@ export function ShopView({
             <p className="mt-2 text-lg">{shop.tagline}</p>
             {shops.length > 1 && (
               <p className="mt-2 flex items-center gap-1.5">
+                <span className="font-mono text-xs text-mute">On:</span>
                 {shops.map((s) => (
                   <ChainMark key={s.chainId} chainId={s.chainId} />
                 ))}
@@ -166,7 +167,7 @@ export function ShopView({
                   onClick={() => setCat(c)}
                   className={`-mb-px whitespace-nowrap border-b-2 px-3 py-3 ${c === cat ? "border-ink font-medium" : "border-transparent text-mute hover:text-ink"}`}
                 >
-                  {c ?? "Everything"}
+                  {c ?? "All"}
                   <span className="ml-1.5 font-mono text-xs text-mute">
                     {c ? items.filter((i) => i.categoryName === c).length : items.length}
                   </span>

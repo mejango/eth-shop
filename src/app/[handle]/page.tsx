@@ -36,7 +36,7 @@ export default async function ShopPage(props: { params: Promise<Params>; searchP
   if (!data) notFound();
   return (
     <>
-      <Header right={<span className="hidden font-mono text-mute sm:inline">{data.shop.slug}</span>} />
+      <Header />
       <ShopView
         shop={data.shop}
         demo={data.demo}

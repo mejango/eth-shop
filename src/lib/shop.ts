@@ -7,7 +7,7 @@ import { publicClientFor } from "./chains";
 import { handleFor, projectOwner } from "./handles";
 import { currencyOf, mapItem, type TierMeta } from "./items";
 import { slugFor } from "./slug";
-import { readAllActiveTiers } from "./tiers";
+import { readAllActiveTiers, readResolvedTierUris } from "./tiers";
 import type { Item, Shop } from "./types";
 
 // `||` on purpose: the Dockerfile materializes unset build args as empty strings, which `??` misses.
@@ -223,6 +223,26 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
       reserveBeneficiary: t.reserveBeneficiary,
     })),
   );
+  // Tiers Bendystraw has no art for (e.g. resolver-only collections like Banny's
+  // newest tiers) get a second, bounded on-chain pass: one small tierOf read each
+  // for the resolver output the bulk read deliberately skips.
+  const missingMedia = activeTiers.filter((t) => !meta.get(t.id)?.image).map((t) => t.id);
+  if (missingMedia.length > 0) {
+    const resolved = await readResolvedTierUris(client, sdk.store, sdk.hook, missingMedia);
+    for (const [tierId, resolvedUri] of resolved) {
+      const patch = mergeTierMeta([{ tierId, metadata: null, resolvedUri }]).get(tierId);
+      const existing = meta.get(tierId);
+      if (!patch?.image || !existing) continue;
+      // Fill display fields only; flags and reserveBeneficiary stay chain-authoritative.
+      meta.set(tierId, {
+        ...existing,
+        image: patch.image,
+        animationUrl: existing.animationUrl ?? patch.animationUrl,
+        name: existing.name || patch.name,
+        description: existing.description || patch.description,
+      });
+    }
+  }
   const tiers: Project721Tier[] = activeTiers.map((t) => ({
     id: t.id,
     price: t.price,

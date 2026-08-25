@@ -1,5 +1,6 @@
 "use client";
 import { Art, Availability, ItemCard, Price } from "@/components/ItemCard";
+import { ProjectRichText } from "@/components/ui/html";
 import { blankItem, type ItemDraft } from "@/components/sell/draft";
 import { ItemFields } from "@/components/sell/ItemFields";
 import { Check, Field, More, field } from "@/components/sell/ui";
@@ -92,7 +93,9 @@ export function ShopView({
           <div>
             <h1 className="display text-4xl font-extrabold sm:text-6xl">{shop.name}</h1>
             <p className="mt-2 text-lg">{shop.tagline}</p>
-            <p className="mt-3 max-w-xl text-sm text-mute">{shop.about}</p>
+            {shop.about && (
+              <ProjectRichText className="rich-text mt-3 max-w-xl text-sm text-mute" source={shop.about} />
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button

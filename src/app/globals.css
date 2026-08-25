@@ -107,3 +107,17 @@ dialog.ui-modal-host[open] {
 dialog.ui-modal-host::backdrop {
   background-color: transparent;
 }
+
+/* Shop-supplied rich text (sanitized markdown/HTML descriptions). */
+.rich-text p { margin: 0 0 0.6em; }
+.rich-text p:last-child { margin-bottom: 0; }
+.rich-text a { text-decoration: underline; }
+.rich-text a:hover { color: var(--color-accent); }
+.rich-text ul, .rich-text ol { margin: 0 0 0.6em; padding-left: 1.2em; }
+.rich-text ul { list-style: disc; }
+.rich-text ol { list-style: decimal; }
+.rich-text h1, .rich-text h2, .rich-text h3, .rich-text h4 { font-weight: 600; margin: 0.8em 0 0.3em; color: var(--color-ink); }
+.rich-text blockquote { border-left: 2px solid var(--color-shelf-deep); padding-left: 0.8em; margin: 0 0 0.6em; }
+.rich-text code, .rich-text pre { font-family: var(--font-mono); font-size: 0.9em; }
+.rich-text pre { overflow-x: auto; background: var(--color-shelf); padding: 0.6em; border-radius: 0.25rem; }
+.rich-text img { max-width: 100%; border-radius: 0.25rem; }

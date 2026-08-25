@@ -56,3 +56,34 @@ export async function readAllActiveTiers(client: PublicClient, store: Address, h
   }
   return tiers;
 }
+
+/**
+ * On-chain resolved URIs for a FEW tiers only. The bulk read above skips
+ * resolver output (oversized responses); this fills media gaps for tiers
+ * Bendystraw has nothing for, one small per-tier call each, capped.
+ */
+export const RESOLVED_TIER_FETCH_CAP = 30;
+
+export async function readResolvedTierUris(
+  client: PublicClient,
+  store: Address,
+  hook: Address,
+  tierIds: number[],
+): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
+  const ids = tierIds.slice(0, RESOLVED_TIER_FETCH_CAP);
+  const results = await Promise.allSettled(
+    ids.map((id) =>
+      client.readContract({
+        address: store,
+        abi: jb721TiersHookStoreAbi,
+        functionName: "tierOf",
+        args: [hook, BigInt(id), true],
+      }),
+    ),
+  );
+  results.forEach((r, i) => {
+    if (r.status === "fulfilled" && r.value.resolvedUri) out.set(ids[i], r.value.resolvedUri);
+  });
+  return out;
+}

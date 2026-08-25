@@ -261,10 +261,7 @@ export function ShopView({
               <Art hue={(openItem.tierId * 47) % 360} className="h-full" />
             )}
             <div className="flex flex-col bg-shelf-light p-6">
-              <p className="font-mono text-xs text-mute">
-                eth.shop/{shop.handle ?? shop.slug} / {openItem.categoryName}
-              </p>
-              <h2 className="display mt-1 text-2xl font-extrabold">{openItem.name}</h2>
+              <h2 className="display text-2xl font-extrabold">{openItem.name}</h2>
               <p className="mt-3 text-sm text-mute">
                 {openItem.description ??
                   (openItem.kind === "digital"
@@ -309,6 +306,12 @@ export function ShopView({
                     <span className="text-right">
                       <Availability item={openItem} />
                     </span>
+                  </>
+                )}
+                {cats.length > 1 && (
+                  <>
+                    <span className="text-mute">Category</span>
+                    <span className="text-right">{openItem.categoryName}</span>
                   </>
                 )}
                 <span className="text-mute">Type</span>

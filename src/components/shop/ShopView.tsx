@@ -108,22 +108,27 @@ export function ShopView({
           <div>
             <h1 className="display text-4xl font-extrabold sm:text-6xl">{shop.name}</h1>
             <p className="mt-2 text-lg">{shop.tagline}</p>
-            {shops.length > 1 && (
-              <p className="mt-2 flex items-center gap-1.5">
-                <span className="font-mono text-xs text-mute">On:</span>
-                {shops.map((s) => (
-                  <ChainMark key={s.chainId} chainId={s.chainId} />
-                ))}
+            {(shop.about || shops.length > 1) && (
+              <p className="mt-2 flex items-center gap-1.5 font-mono text-xs text-mute">
+                {shop.about && (
+                  <button
+                    type="button"
+                    className="underline hover:text-ink"
+                    onClick={() => setAboutOpen(true)}
+                  >
+                    About
+                  </button>
+                )}
+                {shop.about && shops.length > 1 && <span className="mx-2">|</span>}
+                {shops.length > 1 && (
+                  <>
+                    <span>On:</span>
+                    {shops.map((s) => (
+                      <ChainMark key={s.chainId} chainId={s.chainId} />
+                    ))}
+                  </>
+                )}
               </p>
-            )}
-            {shop.about && (
-              <button
-                type="button"
-                className="mt-3 text-sm text-mute underline hover:text-ink"
-                onClick={() => setAboutOpen(true)}
-              >
-                About
-              </button>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-3">

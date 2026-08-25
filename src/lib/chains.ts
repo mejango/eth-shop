@@ -3,15 +3,7 @@ import { jbCenterRpcTransport } from "@/lib/jbcenter-rpc";
 import { JB_CHAIN_SLUGS, JB_CHAINS, type JBChainId } from "@bananapus/nana-sdk-core";
 import { createPublicClient, fallback, http, type PublicClient, type Transport } from "viem";
 
-const MAINNETS = [1, 8453, 10, 42161] as const satisfies readonly JBChainId[];
-const TESTNETS = [11155111, 84532, 11155420, 421614] as const satisfies readonly JBChainId[];
-
-export const SUPPORTED_CHAIN_IDS: readonly JBChainId[] =
-  process.env.NEXT_PUBLIC_TESTNET === "1" ? [...MAINNETS, ...TESTNETS] : [...MAINNETS];
-
-export function isSupportedChain(id: number): id is JBChainId {
-  return (SUPPORTED_CHAIN_IDS as readonly number[]).includes(id);
-}
+export { SUPPORTED_CHAIN_IDS, SUPPORTED_CHAINS, isSupportedChain } from "./chainList";
 
 export function chainSlug(chainId: JBChainId): string {
   const entry = Object.entries(JB_CHAIN_SLUGS).find(([, v]) => v.chain.id === chainId);

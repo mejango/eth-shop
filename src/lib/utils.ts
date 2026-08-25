@@ -31,6 +31,17 @@ export function explorerBaseUrl(chainId: number): string | undefined {
   return `https://${chainMeta.etherscanHostname}`;
 }
 
+export function formatEthAddress(address: string, opts: { truncateTo?: number } = { truncateTo: 4 }) {
+  if (!opts.truncateTo) return address;
+
+  const frontTruncate = opts.truncateTo + 2; // account for 0x
+  return (
+    address.substring(0, frontTruncate) +
+    "..." +
+    address.substring(address.length - opts.truncateTo, address.length)
+  );
+}
+
 export function formatWalletError(error: unknown, defaultMessage = "Please try again") {
   if (typeof error === "string") return error;
   if (!error || typeof error !== "object") return defaultMessage;

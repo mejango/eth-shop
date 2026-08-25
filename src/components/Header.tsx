@@ -1,3 +1,4 @@
+import { WalletButton } from "@/components/WalletButton";
 import Link from "next/link";
 
 export function Header({ right }: { right?: React.ReactNode }) {
@@ -11,6 +12,7 @@ export function Header({ right }: { right?: React.ReactNode }) {
         <Link href="/#buy" className="font-medium hover:text-accent">
           Buy
         </Link>
+        <WalletButton />
         <Link
           href="/sell"
           className="rounded-full bg-ink px-4 py-1.5 font-medium text-paper hover:bg-accent"

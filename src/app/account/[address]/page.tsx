@@ -1,4 +1,5 @@
 import { Header } from "@/components/Header";
+import { YouBadge } from "@/components/account/YouBadge";
 import { groupByShop, readOwnedItems } from "@/lib/account";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -14,6 +15,7 @@ export default async function Account({ params }: { params: Promise<{ address: s
       <div className="px-5 py-10">
         <h1 className="display text-4xl font-extrabold">Your items</h1>
         <p className="mt-1 font-mono text-sm text-mute">{address}</p>
+        <YouBadge address={address} />
         {groups.length === 0 && (
           <p className="mt-8 text-mute">
             Nothing yet.{" "}

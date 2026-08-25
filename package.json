@@ -17,7 +17,7 @@
     "env:check:runtime": "node --env-file-if-exists=.env.local scripts/validate-env.mjs runtime",
     "env:test": "node scripts/test-validate-env.mjs",
     "wallet-writes:check": "node scripts/check-wallet-write-sites.mjs",
-    "check": "npm run typecheck && npm run lint && npm run test && npm run env:test && npm run wallet-writes:check && npm run build",
+    "check": "npm run typecheck && npm run lint && npm run env:test && npm run wallet-writes:check && npm run test && npm run build",
     "format:write": "prettier --write \"**/*.{js,jsx,mjs,ts,tsx,json,css}\""
   },
   "dependencies": {

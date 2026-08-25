@@ -65,6 +65,7 @@ export function ShopView({
   const [manage, setManage] = useState(demo && !!initialManage);
   const [log, setLog] = useState<string[]>([]);
   const [buyChain, setBuyChain] = useState<number>(shop.chainId);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const unit = shop.currency;
   const shops = chainShops?.length ? chainShops : [shop];
 
@@ -116,7 +117,21 @@ export function ShopView({
               </p>
             )}
             {shop.about && (
-              <ProjectRichText className="rich-text mt-3 max-w-xl text-sm text-mute" source={shop.about} />
+              <div className="mt-3 max-w-xl text-sm text-mute">
+                <ProjectRichText
+                  className={`rich-text ${aboutOpen ? "" : "line-clamp-2"}`}
+                  source={shop.about}
+                />
+                {shop.about.length > 160 && (
+                  <button
+                    type="button"
+                    className="mt-1 text-xs text-mute underline hover:text-ink"
+                    onClick={() => setAboutOpen((o) => !o)}
+                  >
+                    {aboutOpen ? "less" : "more"}
+                  </button>
+                )}
+              </div>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-3">

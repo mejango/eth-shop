@@ -111,6 +111,7 @@ dialog.ui-modal-host::backdrop {
 
 /* Shop-supplied rich text (sanitized markdown/HTML descriptions). */
 .rich-text p { margin: 0 0 0.6em; }
+.rich-text p:empty { display: none; }
 .rich-text p:last-child { margin-bottom: 0; }
 .rich-text a { text-decoration: underline; }
 .rich-text a:hover { color: var(--color-accent); }

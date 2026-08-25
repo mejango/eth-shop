@@ -51,7 +51,7 @@ const PARA_PORTAL_MONO = 'ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier 
 export const PARA_PORTAL_THEME = {
   backgroundColor: "#ffffff",
   foregroundColor: "#0e0e0e",
-  accentColor: "#0891b2",
+  accentColor: "#58d3cf",
   mode: "light" as const,
   borderRadius: "none" as const,
   // NOT `font`. Para wraps that value in quotes — `"${font}", ui-sans-serif, …` — so a stack

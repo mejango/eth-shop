@@ -319,7 +319,7 @@ export function ShopView({
               {finePrint(openItem, shop, extras[openItem.tierId]).length > 0 && (
                 <details className="group mt-5 text-xs text-mute">
                   <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-                    The fine print{" "}
+                    Fine print{" "}
                     <span className="inline-block transition-transform group-open:rotate-180">▾</span>
                   </summary>
                   <ul className="mt-2 space-y-1.5">

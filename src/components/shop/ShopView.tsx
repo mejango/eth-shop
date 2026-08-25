@@ -257,52 +257,64 @@ export function ShopView({
                     ? "Delivered as a download in your receipt."
                     : "Ships after purchase.")}
               </p>
-              <ul className="mt-4 flex flex-wrap gap-2 text-xs">
-                {openItem.discountPercent > 0 ? (
+              {openItem.discountPercent > 0 && (
+                <ul className="mt-4 flex flex-wrap gap-2 text-xs">
                   <Badge>{openItem.discountPercent / 2}% off</Badge>
-                ) : null}
-                {openItem.reserveFrequency ? (
-                  <Badge>
-                    1 in {openItem.reserveFrequency} reserved for {openItem.reserveBeneficiary}
-                  </Badge>
-                ) : null}
-                {Number(openItem.votingUnits) ? (
-                  <Badge>{Number(openItem.votingUnits)} votes each</Badge>
-                ) : null}
-                {openItem.transfersPausable && <Badge>non-transferable</Badge>}
-                {openItem.cantBeRemoved && <Badge>permanent</Badge>}
-                {extras[openItem.tierId]?.noCredits && <Badge>no credit purchases</Badge>}
-                {openItem.allowOwnerMint && <Badge>owner can mint free</Badge>}
-                {extras[openItem.tierId]?.splitPercent ? (
-                  <Badge>
-                    {extras[openItem.tierId]?.splitPercent}% to {extras[openItem.tierId]?.splitTo}
-                  </Badge>
-                ) : null}
-                {shop.ruleset.cashOut && <Badge>cashes out for surplus</Badge>}
-              </ul>
-              <dl className="tag mt-6 grid grid-cols-2 gap-y-2 pt-4 text-sm">
-                <dt className="text-mute">Price</dt>
-                <dd className="text-right">
+                </ul>
+              )}
+              <div className="tag mt-6 grid grid-cols-2 gap-y-2 pt-4 text-sm">
+                <span className="text-mute">Price</span>
+                <span className="text-right">
                   <Price item={openItem} big />
-                </dd>
-                <dt className="text-mute">Availability</dt>
-                <dd className="text-right">
-                  <Availability item={openItem} />
-                </dd>
-                {shops.length > 1 &&
-                  openItem.chains?.map((c) => (
-                    <Fragment key={c.chainId}>
-                      <dt className="pl-3 text-mute">{chainLabel(c.chainId)}</dt>
-                      <dd className="text-right font-mono">
-                        {c.remaining === undefined ? "unlimited" : c.remaining === 0 ? "sold out" : `${c.remaining} left`}
-                      </dd>
-                    </Fragment>
-                  ))}
-                <dt className="text-mute">Type</dt>
-                <dd className="text-right capitalize">{openItem.kind}</dd>
-                <dt className="text-mute">Sold</dt>
-                <dd className="text-right font-mono">{openItem.sold}</dd>
-              </dl>
+                </span>
+                {shops.length > 1 && openItem.chains ? (
+                  <details className="group col-span-2">
+                    <summary className="flex cursor-pointer list-none justify-between [&::-webkit-details-marker]:hidden">
+                      <span className="text-mute">Availability</span>
+                      <span className="text-right">
+                        <Availability item={openItem} />{" "}
+                        <span className="inline-block text-xs text-mute transition-transform group-open:rotate-180">
+                          ▾
+                        </span>
+                      </span>
+                    </summary>
+                    <div className="mt-2 grid grid-cols-2 gap-y-2">
+                      {openItem.chains.map((c) => (
+                        <Fragment key={c.chainId}>
+                          <span className="pl-3 text-mute">{chainLabel(c.chainId)}</span>
+                          <span className="text-right font-mono">
+                            {c.remaining === undefined ? "unlimited" : c.remaining === 0 ? "sold out" : `${c.remaining} left`}
+                          </span>
+                        </Fragment>
+                      ))}
+                    </div>
+                  </details>
+                ) : (
+                  <>
+                    <span className="text-mute">Availability</span>
+                    <span className="text-right">
+                      <Availability item={openItem} />
+                    </span>
+                  </>
+                )}
+                <span className="text-mute">Type</span>
+                <span className="text-right capitalize">{openItem.kind}</span>
+                <span className="text-mute">Sold</span>
+                <span className="text-right font-mono">{openItem.sold}</span>
+              </div>
+              {finePrint(openItem, shop, extras[openItem.tierId]).length > 0 && (
+                <details className="group mt-5 text-xs text-mute">
+                  <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                    The fine print{" "}
+                    <span className="inline-block transition-transform group-open:rotate-180">▾</span>
+                  </summary>
+                  <ul className="mt-2 space-y-1.5">
+                    {finePrint(openItem, shop, extras[openItem.tierId]).map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
               <div className="mt-auto space-y-2 pt-6">
                 <button
                   type="button"
@@ -442,6 +454,39 @@ export function ShopView({
       )}
     </>
   );
+}
+
+
+function shortAddress(a: string): string {
+  return a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a;
+}
+
+const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
+
+// Plain-language explanations of an item's on-chain mechanics, shown under "The fine print".
+function finePrint(
+  item: Item,
+  shop: Shop,
+  extra?: { noCredits?: boolean; splitPercent?: number; splitTo?: string },
+): string[] {
+  const lines: string[] = [];
+  if (item.reserveFrequency)
+    lines.push(
+      `1 of every ${item.reserveFrequency} minted is set aside for ${shortAddress(item.reserveBeneficiary ?? "the seller's beneficiary")} — the seller's chosen recipient.`,
+    );
+  if (Number(item.votingUnits))
+    lines.push(
+      `Each one carries ${compact.format(Number(item.votingUnits))} votes in this shop's governance.`,
+    );
+  if (item.transfersPausable) lines.push("The seller can pause transfers, freezing this item in wallets.");
+  if (item.cantBeRemoved) lines.push("Permanent: the seller can never remove this item from the shop.");
+  if (item.cantBuyWithCredits || extra?.noCredits)
+    lines.push("Can't be bought with shop credit — direct payment only.");
+  if (item.allowOwnerMint) lines.push("The shop owner can mint copies of this item without paying.");
+  if (extra?.splitPercent) lines.push(`${extra.splitPercent}% of each sale goes to ${extra.splitTo}.`);
+  if (shop.ruleset.cashOut)
+    lines.push("Owning this item lets you cash it out anytime for its share of the shop's surplus funds.");
+  return lines;
 }
 
 function Badge({ children }: { children: React.ReactNode }) {

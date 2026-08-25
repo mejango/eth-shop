@@ -11,3 +11,9 @@ export const SUPPORTED_CHAINS = SUPPORTED_CHAIN_IDS.map((id) => JB_CHAINS[id].ch
 export function isSupportedChain(id: number): id is JBChainId {
   return (SUPPORTED_CHAIN_IDS as readonly number[]).includes(id);
 }
+
+const CHAIN_LABELS: Record<number, string> = { 1: "Ethereum", 10: "Optimism", 8453: "Base", 42161: "Arbitrum" };
+
+export function chainLabel(id: number): string {
+  return CHAIN_LABELS[id] ?? JB_CHAINS[id as JBChainId]?.chain.name ?? `Chain ${id}`;
+}

@@ -3,10 +3,11 @@ import { getJBContractAddress, isContractRevertError, NATIVE_TOKEN, RevnetCoreCo
 import { decode721RulesetMetadata, getAccountingContexts, getCurrentRuleset, getProject721Shop, parseTierMetadataJson, tierDisplayMetadata, tierMediaImageUrl, type Project721Tier } from "@bananapus/nana-sdk-core/v6";
 import type { Address } from "viem";
 import { bendystraw } from "./bendystraw";
-import { publicClientFor } from "./chains";
+import { isSupportedChain, publicClientFor } from "./chains";
 import { handleFor, projectOwner } from "./handles";
 import { currencyOf, mapItem, type TierMeta } from "./items";
 import { slugFor } from "./slug";
+import { mergeCatalogs } from "./omni";
 import { readAllActiveTiers, readResolvedTierUris } from "./tiers";
 import type { Item, Shop } from "./types";
 
@@ -240,8 +241,22 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
         animationUrl: existing.animationUrl ?? patch.animationUrl,
         name: existing.name || patch.name,
         description: existing.description || patch.description,
+        categoryName: existing.categoryName || patch.categoryName,
       });
     }
+  }
+  // A tier with no metadata at all falls back to "Category N"; if a sibling in the
+  // same category id has a real name, adopt it so the catalog doesn't split one
+  // category into two tabs.
+  const categoryNames = new Map<number, string>();
+  for (const t of activeTiers) {
+    const name = meta.get(t.id)?.categoryName;
+    if (name && !categoryNames.has(t.category)) categoryNames.set(t.category, name);
+  }
+  for (const t of activeTiers) {
+    const m = meta.get(t.id);
+    const sibling = categoryNames.get(t.category);
+    if (m && !m.categoryName && sibling) meta.set(t.id, { ...m, categoryName: sibling });
   }
   const tiers: Project721Tier[] = activeTiers.map((t) => ({
     id: t.id,
@@ -286,4 +301,61 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
   };
   const items = tiers.map((t) => mapItem({ shopSlug: slug, tier: t, meta: meta.get(t.id), currency, decimals: sdk.pricing.decimals }));
   return { shop, items };
+}
+
+const GROUP_QUERY = `query Group($chainId: Float!, $projectId: Float!) {
+  project(chainId: $chainId, projectId: $projectId, version: 6) { suckerGroupId }
+}`;
+const PEERS_QUERY = `query Peers($group: String) {
+  projects(where: { suckerGroupId: $group, version: 6 }, limit: 20) { items { chainId projectId } }
+}`;
+
+async function suckerPeers(chainId: JBChainId, projectId: bigint): Promise<{ chainId: number; projectId: number }[]> {
+  try {
+    const group = await bendystraw<{ project: { suckerGroupId: string | null } | null }>(chainId, GROUP_QUERY, {
+      chainId,
+      projectId: Number(projectId),
+    });
+    const id = group.project?.suckerGroupId;
+    if (!id) return [];
+    const peers = await bendystraw<{ projects: { items: { chainId: number; projectId: number }[] } }>(
+      chainId,
+      PEERS_QUERY,
+      { group: id },
+    );
+    return peers.projects.items;
+  } catch (error) {
+    console.warn("suckerPeers failed; rendering single-chain", { chainId, projectId, error });
+    return [];
+  }
+}
+
+/**
+ * A shop merged across its sucker group: the requested chain is canonical, peers
+ * are read in parallel, and identical items collapse into one card with summed
+ * inventory (see mergeCatalogs). Peer failures degrade to fewer chains, never an
+ * error; a Bendystraw outage degrades to single-chain.
+ */
+export async function readOmnichainShop(
+  chainId: JBChainId,
+  projectId: bigint,
+): Promise<{ shop: Shop; items: Item[]; chainShops: Shop[] } | null> {
+  const [canonical, peers] = await Promise.all([readShop(chainId, projectId), suckerPeers(chainId, projectId)]);
+  if (!canonical) return null;
+  const others = peers.filter(
+    (p) => isSupportedChain(p.chainId) && !(p.chainId === chainId && BigInt(p.projectId) === projectId),
+  );
+  const peerReads =
+    others.length > 0
+      ? await Promise.all(
+          others.map((p) =>
+            readShop(p.chainId as JBChainId, BigInt(p.projectId)).catch((error: unknown) => {
+              console.warn("peer readShop failed; dropping chain", { peer: p, error });
+              return null;
+            }),
+          ),
+        )
+      : [];
+  const catalogs = [canonical, ...peerReads.filter((c): c is NonNullable<typeof c> => c !== null)];
+  return { shop: canonical.shop, items: mergeCatalogs(catalogs), chainShops: catalogs.map((c) => c.shop) };
 }

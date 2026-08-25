@@ -52,4 +52,6 @@ export type Item = {
   cantBeRemoved: boolean;
   cantBuyWithCredits: boolean;
   kind: "digital" | "physical";
+  /** Per-chain availability when the shop spans multiple chains: each entry is that chain's tierId + remaining. */
+  chains?: { chainId: number; tierId: number; remaining: number | undefined }[];
 };

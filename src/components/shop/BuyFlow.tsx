@@ -62,11 +62,14 @@ export function BuyFlow({
   lines,
   onClose,
   onPurchased,
+  chainPicker,
 }: {
   shop: Shop;
   lines: BuyFlowLine[];
   onClose: () => void;
   onPurchased: (tokenIds: bigint[]) => void;
+  /** Rendered on the review screen when the shop spans chains; switching remounts BuyFlow (keyed by chain). */
+  chainPicker?: React.ReactNode;
 }) {
   const { address } = useAccount();
   const publicClient = usePublicClient({ chainId: shop.chainId });
@@ -528,6 +531,7 @@ export function BuyFlow({
           </div>
         ) : (
           <div className="mt-4 space-y-4">
+            {chainPicker}
             <ul className="space-y-2 text-sm">
               {lines.map((line) => (
                 <li key={line.tierId} className="flex justify-between gap-3">

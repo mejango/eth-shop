@@ -5,10 +5,12 @@ import { blankItem, type ItemDraft } from "@/components/sell/draft";
 import { ItemFields } from "@/components/sell/ItemFields";
 import { Check, Field, More, field } from "@/components/sell/ui";
 import { BuyFlow } from "@/components/shop/BuyFlow";
+import { chainLabel } from "@/lib/chainList";
 import { formatPrice } from "@/lib/items";
+import { availableChainIds, tierIdOn } from "@/lib/omni";
 import type { Item, Shop } from "@/lib/types";
 import { TIER_UNLIMITED_SUPPLY } from "@bananapus/nana-sdk-core/v6";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 
 // ponytail: the whole storefront + owner console on local state so every 721 action is clickable.
@@ -32,6 +34,7 @@ export function ShopView({
   shop: initialShop,
   demo,
   initialItems,
+  chainShops,
   initialOpen,
   initialManage,
   extras: initialExtras = {},
@@ -41,6 +44,8 @@ export function ShopView({
   /** Only `/demo` has a fake owner console (Manage) and a simulated checkout. A real shop buys for real via BuyFlow and has no Manage mode. */
   demo: boolean;
   initialItems: Item[];
+  /** All per-chain shops in the sucker group, canonical first. Absent/singleton = single-chain. */
+  chainShops?: Shop[];
   initialOpen?: number;
   initialManage?: boolean;
   extras?: Extras;
@@ -59,7 +64,9 @@ export function ShopView({
   // A real shop is never in Manage mode: the toggle is hidden and initialManage is ignored.
   const [manage, setManage] = useState(demo && !!initialManage);
   const [log, setLog] = useState<string[]>([]);
+  const [buyChain, setBuyChain] = useState<number>(shop.chainId);
   const unit = shop.currency;
+  const shops = chainShops?.length ? chainShops : [shop];
 
   const sign = (what: string) => setLog((l) => [what, ...l]);
   const patch = (tierId: number, p: Partial<Item>) =>
@@ -74,6 +81,10 @@ export function ShopView({
   }));
   const cartTotal = cartLines.reduce((s, l) => s + priceOf(l.item, shop) * l.qty, 0);
   const cartCount = cartLines.reduce((s, l) => s + l.qty, 0);
+  // Chain choice happens at buy time: only chains where every cart line is in stock are offered.
+  const buyableChains = availableChainIds(cartLines, shops, shop.chainId);
+  const buyChainId = buyableChains.includes(buyChain) ? buyChain : (buyableChains[0] ?? shop.chainId);
+  const buyShop = shops.find((s) => s.chainId === buyChainId) ?? shop;
   const add = (tierId: number, n = 1) => setCart((c) => ({ ...c, [tierId]: (c[tierId] ?? 0) + n }));
 
   const mintReserves = (item: Item) => {
@@ -93,6 +104,11 @@ export function ShopView({
           <div>
             <h1 className="display text-4xl font-extrabold sm:text-6xl">{shop.name}</h1>
             <p className="mt-2 text-lg">{shop.tagline}</p>
+            {shops.length > 1 && (
+              <p className="mt-1 font-mono text-xs text-mute">
+                On {shops.map((s) => chainLabel(s.chainId)).join(", ")}
+              </p>
+            )}
             {shop.about && (
               <ProjectRichText className="rich-text mt-3 max-w-xl text-sm text-mute" source={shop.about} />
             )}
@@ -213,7 +229,13 @@ export function ShopView({
       {openItem && (
         <Dialog onClose={() => setOpen(undefined)} wide>
           <div className="grid sm:grid-cols-2">
-            <Art hue={(openItem.tierId * 47) % 360} className="h-full" />
+            {openItem.image ? (
+              // Same CSP-restricted sources as ItemCard (IPFS gateway + data: URIs).
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={openItem.image} alt="" className="h-full w-full bg-shelf object-contain" />
+            ) : (
+              <Art hue={(openItem.tierId * 47) % 360} className="h-full" />
+            )}
             <div className="flex flex-col p-6">
               <p className="font-mono text-xs text-mute">
                 eth.shop/{shop.handle ?? shop.slug} / {openItem.categoryName}
@@ -257,6 +279,15 @@ export function ShopView({
                 <dd className="text-right">
                   <Availability item={openItem} />
                 </dd>
+                {shops.length > 1 &&
+                  openItem.chains?.map((c) => (
+                    <Fragment key={c.chainId}>
+                      <dt className="pl-3 text-mute">{chainLabel(c.chainId)}</dt>
+                      <dd className="text-right font-mono">
+                        {c.remaining === undefined ? "unlimited" : c.remaining === 0 ? "sold out" : `${c.remaining} left`}
+                      </dd>
+                    </Fragment>
+                  ))}
                 <dt className="text-mute">Type</dt>
                 <dd className="text-right capitalize">{openItem.kind}</dd>
                 <dt className="text-mute">Sold</dt>
@@ -313,14 +344,32 @@ export function ShopView({
 
       {checkout && !demo && (
         <BuyFlow
-          shop={shop}
+          key={buyChainId}
+          shop={buyShop}
           lines={cartLines.map((l) => ({
-            tierId: l.item.tierId,
+            tierId: tierIdOn(l.item, buyChainId),
             qty: l.qty,
             effectivePrice: BigInt(l.item.effectivePrice),
             cantBuyWithCredits: l.item.cantBuyWithCredits,
             name: l.item.name,
           }))}
+          chainPicker={
+            buyableChains.length > 1 ? (
+              <fieldset className="flex flex-wrap gap-2">
+                <legend className="mb-1 w-full text-xs text-mute">Buy on</legend>
+                {buyableChains.map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={id === buyChainId ? `${ghost} border-ink` : ghost}
+                    onClick={() => setBuyChain(id)}
+                  >
+                    {chainLabel(id)}
+                  </button>
+                ))}
+              </fieldset>
+            ) : undefined
+          }
           onClose={() => setCheckout(false)}
           onPurchased={() => {
             // Only the cart clears here — BuyFlow stays mounted showing its

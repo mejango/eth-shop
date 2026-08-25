@@ -494,8 +494,6 @@ function shortAddress(a: string): string {
   return a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a;
 }
 
-const compact = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
-
 // Plain-language explanations of an item's on-chain mechanics, shown under "The fine print".
 function finePrint(
   item: Item,
@@ -506,10 +504,6 @@ function finePrint(
   if (item.reserveFrequency)
     lines.push(
       `1 of every ${item.reserveFrequency} minted is set aside for ${shortAddress(item.reserveBeneficiary ?? "the seller's beneficiary")} — the seller's chosen recipient.`,
-    );
-  if (Number(item.votingUnits))
-    lines.push(
-      `Each one carries ${compact.format(Number(item.votingUnits))} votes in this shop's governance.`,
     );
   if (item.transfersPausable) lines.push("The seller can pause transfers, freezing this item in wallets.");
   if (item.cantBeRemoved) lines.push("Permanent: the seller can never remove this item from the shop.");

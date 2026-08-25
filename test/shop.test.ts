@@ -18,6 +18,17 @@ describe("mergeTierMeta", () => {
     expect(m.get(3)?.image).toBe("https://juicebox.center/ipfs/bafybeian6sdh3idofou7v2f5ufw2et52lnlxj5ijtnmiw2fghgxnsszpha");
   });
 
+  it("reads cantBuyWithCredits from the on-chain tier flag", () => {
+    const m = mergeTierMeta([
+      { tierId: 1, metadata: { name: "A" }, resolvedUri: "", cantBuyWithCredits: true },
+      { tierId: 2, metadata: { name: "B" }, resolvedUri: "", cantBuyWithCredits: false },
+      { tierId: 3, metadata: { name: "C" }, resolvedUri: "" },
+    ]);
+    expect(m.get(1)?.cantBuyWithCredits).toBe(true);
+    expect(m.get(2)?.cantBuyWithCredits).toBe(false);
+    expect(m.get(3)?.cantBuyWithCredits).toBeUndefined();
+  });
+
   it("prefers a resolvedUri data uri over pinned metadata", () => {
     const json = Buffer.from(JSON.stringify({ name: "A", image: "data:image/svg+xml;base64,PHN2Zy8+" })).toString("base64");
     const m = mergeTierMeta([{ tierId: 1, metadata: { name: "A", image: "ipfs://x" }, resolvedUri: `data:application/json;base64,${json}` }]);

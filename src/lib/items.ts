@@ -10,6 +10,7 @@ export type TierMeta = TierMetadata & {
   allowOwnerMint?: boolean;
   transfersPausable?: boolean;
   cannotBeRemoved?: boolean;
+  cantBuyWithCredits?: boolean;
   reserveBeneficiary?: Address;
 };
 
@@ -60,6 +61,7 @@ export function mapItem({ shopSlug, tier, meta, currency, decimals }: {
     allowOwnerMint: !!meta?.allowOwnerMint,
     transfersPausable: !!meta?.transfersPausable,
     cantBeRemoved: !!meta?.cannotBeRemoved,
+    cantBuyWithCredits: !!meta?.cantBuyWithCredits,
     // No on-chain "physical" bit; Phase 3 writes mediaType "physical" into tier metadata.
     kind: meta?.mediaType === "physical" ? "physical" : "digital",
   };

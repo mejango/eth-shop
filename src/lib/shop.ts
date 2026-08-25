@@ -20,6 +20,7 @@ export type BendyTier = {
   allowOwnerMint?: boolean | null;
   transfersPausable?: boolean | null;
   cannotBeRemoved?: boolean | null;
+  cantBuyWithCredits?: boolean | null;
   reserveBeneficiary?: string | null;
 };
 
@@ -107,6 +108,7 @@ export function mergeTierMeta(rows: BendyTier[]): Map<number, TierMeta> {
       allowOwnerMint: r.allowOwnerMint ?? undefined,
       transfersPausable: r.transfersPausable ?? undefined,
       cannotBeRemoved: r.cannotBeRemoved ?? undefined,
+      cantBuyWithCredits: r.cantBuyWithCredits ?? undefined,
       reserveBeneficiary: r.reserveBeneficiary && r.reserveBeneficiary !== ZERO ? (r.reserveBeneficiary as Address) : undefined,
     });
   }
@@ -216,6 +218,7 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
       allowOwnerMint: t.flags.allowOwnerMint,
       transfersPausable: t.flags.transfersPausable,
       cannotBeRemoved: t.flags.cantBeRemoved,
+      cantBuyWithCredits: t.flags.cantBuyWithCredits,
       reserveBeneficiary: t.reserveBeneficiary,
     })),
   );

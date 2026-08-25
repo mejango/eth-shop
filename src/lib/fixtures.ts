@@ -48,6 +48,7 @@ function item(opts: {
   allowOwnerMint?: boolean;
   transfersPausable?: boolean;
   cantBeRemoved?: boolean;
+  cantBuyWithCredits?: boolean;
   kind?: "digital" | "physical";
 }): Item {
   const price = wei(opts.priceEth ?? 0.01);
@@ -77,6 +78,7 @@ function item(opts: {
     allowOwnerMint: opts.allowOwnerMint ?? false,
     transfersPausable: opts.transfersPausable ?? false,
     cantBeRemoved: opts.cantBeRemoved ?? false,
+    cantBuyWithCredits: opts.cantBuyWithCredits ?? false,
     kind: opts.kind ?? "digital",
   };
 }
@@ -166,6 +168,7 @@ export const demoItems: Item[] = [
     name: "No credit purchases",
     description: "Must be paid for with fresh funds; leftover credit can't cover it.",
     priceEth: 0.015,
+    cantBuyWithCredits: true,
   }),
   item({
     tierId: 109,

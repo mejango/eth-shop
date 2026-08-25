@@ -48,5 +48,6 @@ export type Item = {
   allowOwnerMint: boolean;
   transfersPausable: boolean;
   cantBeRemoved: boolean;
+  cantBuyWithCredits: boolean;
   kind: "digital" | "physical";
 };

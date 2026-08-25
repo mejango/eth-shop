@@ -143,7 +143,10 @@ export function BuyFlow({
     if (lines.length === 0) return "Your cart is empty.";
     if (shop.acceptedTokens.length === 0) return "This shop hasn't set up payments yet.";
     if (payableTokens !== null && payableTokens.length === 0) {
-      return "This shop can't take a direct payment right now.";
+      // Router-only tokens are already filtered out of payableTokens (never
+      // shown as a choice); this is the "none left" case — same binding copy
+      // buildPayTx's own callers use for a router-required item checkout.
+      return "Item checkout requires a directly accepted token.";
     }
     if (!currentToken) return null; // still resolving payable tokens
     if (!priceLoading && pricePerUnit === null) return `This shop can't be paid in ${currentToken.symbol}.`;
@@ -190,7 +193,9 @@ export function BuyFlow({
   }, [publicClient, payableTokens, shop.acceptedTokens, shop.chainId, projectId]);
 
   // Step 2: once a payable token is selected and priced, take a live preview
-  // and a pre-purchase balance snapshot, then move to the review phase.
+  // (of the FULL amount that will actually be sent, including round-up — see
+  // finding 5) and a pre-purchase balance snapshot, then move to the review
+  // phase.
   useEffect(() => {
     if (phase !== "preparing") return;
     if (!address || !publicClient) return;
@@ -200,7 +205,7 @@ export function BuyFlow({
       return;
     }
     if (priceLoading) return;
-    if (previewAmountDue === null) {
+    if (finalPaymentAmount === null) {
       setPhase("ready");
       return;
     }
@@ -212,7 +217,7 @@ export function BuyFlow({
           terminal: currentToken.terminal,
           projectId,
           token: currentToken.token,
-          amount: previewAmountDue,
+          amount: finalPaymentAmount,
           beneficiary: address,
           metadata: finalMetadata,
         });
@@ -234,7 +239,7 @@ export function BuyFlow({
     return () => {
       cancelled = true;
     };
-  }, [phase, address, publicClient, payableTokens, currentToken, priceLoading, previewAmountDue, finalMetadata, shop.chainId, shop.hook, projectId]);
+  }, [phase, address, publicClient, payableTokens, currentToken, priceLoading, finalPaymentAmount, finalMetadata, shop.chainId, shop.hook, projectId]);
 
   function selectToken(token: Address) {
     if (phase !== "ready" && phase !== "preparing") return;
@@ -244,22 +249,59 @@ export function BuyFlow({
     setPhase("preparing");
   }
 
+  // The round-up checkbox changes finalPaymentAmount/finalMetadata, which
+  // feed the live preview above — re-run it so "you'll receive at least"
+  // reflects the amount actually being sent (finding 5).
+  function toggleRoundUp(checked: boolean) {
+    if (phase !== "ready") return;
+    setRoundUpChecked(checked);
+    setPrepared(null);
+    setError(null);
+    setPhase("preparing");
+  }
+
   async function confirm() {
     if (!currentToken || !prepared || !address || !publicClient || finalPaymentAmount === null) return;
     setError(null);
     try {
+      // Re-resolve the terminal and re-preview immediately before signing.
+      // `preparing`'s batch resolution / preview can be stale by the time the
+      // buyer actually confirms (the primary terminal can repoint, the price
+      // can move) — the values that feed buildPayTx's terminal and
+      // minReturnedTokens must come from a fresh read, never a cached one.
+      // A router-only re-resolution fails closed into the catch block below
+      // (stays in `ready`, shows an error line) rather than signing against
+      // a stale, no-longer-valid direct terminal.
+      const resolved = await resolvePaymentTerminal(publicClient, {
+        chainId: shop.chainId,
+        projectId,
+        token: currentToken.token,
+      });
+      if (resolved.isRouter) {
+        throw new Error("Item checkout requires a directly accepted token.");
+      }
+      const freshPreview = await previewPay(publicClient, {
+        chainId: shop.chainId,
+        terminal: resolved.address,
+        projectId,
+        token: currentToken.token,
+        amount: finalPaymentAmount,
+        beneficiary: address,
+        metadata: finalMetadata,
+      });
+
       let approvalBlock: bigint | undefined;
       if (!isNativeToken(currentToken.token)) {
         setPhase("approving");
-        const approvalHash = await ensureAllowance(currentToken.token, currentToken.terminal, finalPaymentAmount);
+        const approvalHash = await ensureAllowance(currentToken.token, resolved.address, finalPaymentAmount);
         const receipt = approvalHash ? getApprovalReceipt(approvalHash) : undefined;
         if (receipt?.blockNumber !== undefined) approvalBlock = receipt.blockNumber;
       }
 
-      const minReturned = minReturnedTokens(prepared.preview.beneficiaryTokenCount, SLIPPAGE_BPS);
+      const minReturned = minReturnedTokens(freshPreview.beneficiaryTokenCount, SLIPPAGE_BPS);
       const request = buildPayTx({
         chainId: shop.chainId,
-        terminal: currentToken.terminal,
+        terminal: resolved.address,
         projectId,
         token: currentToken.token,
         amount: finalPaymentAmount,
@@ -307,6 +349,10 @@ export function BuyFlow({
       })) as bigint;
 
       if (after <= prepared.before) {
+        // Payment went through but minted nothing — it may have landed as
+        // credits instead (e.g. a sold-out tier mid-flight), so that query
+        // could now be stale even though no NFT arrived.
+        queryClient.invalidateQueries({ queryKey: ["shopCredits", shop.chainId, shop.hook, address] });
         setPhase("unverified");
         return;
       }
@@ -475,7 +521,7 @@ export function BuyFlow({
                   type="checkbox"
                   className="h-4 w-4 accent-accent"
                   checked={roundUpChecked}
-                  onChange={(e) => setRoundUpChecked(e.target.checked)}
+                  onChange={(e) => toggleRoundUp(e.target.checked)}
                 />
                 Round up to {formatUnits(roundUp(previewAmountDue, currentToken.decimals), currentToken.decimals)}{" "}
                 {currentToken.symbol}; the extra stays as credit for next time

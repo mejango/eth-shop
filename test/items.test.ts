@@ -29,6 +29,14 @@ describe("mapItem", () => {
     expect(item.kind).toBe("physical");
     expect(item.allowOwnerMint).toBe(true);
   });
+  it("defaults cantBuyWithCredits to false when meta omits it", () => {
+    const item = mapItem({ shopSlug: "base:41", tier, meta: { name: "Mug" }, currency: "ETH", decimals: 18 });
+    expect(item.cantBuyWithCredits).toBe(false);
+  });
+  it("reads cantBuyWithCredits from the on-chain tier flag", () => {
+    const item = mapItem({ shopSlug: "base:41", tier, meta: { name: "Mug", cantBuyWithCredits: true }, currency: "ETH", decimals: 18 });
+    expect(item.cantBuyWithCredits).toBe(true);
+  });
 });
 
 describe("formatPrice", () => {

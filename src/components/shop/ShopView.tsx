@@ -37,7 +37,7 @@ export function ShopView({
   initialOperators = [],
 }: {
   shop: Shop;
-  /** Only `/demo` is interactive. A real shop is read-only until buying ships. */
+  /** Only `/demo` has a fake owner console (Manage) and a simulated checkout. A real shop buys for real via BuyFlow and has no Manage mode. */
   demo: boolean;
   initialItems: Item[];
   initialOpen?: number;
@@ -315,15 +315,17 @@ export function ShopView({
             tierId: l.item.tierId,
             qty: l.qty,
             effectivePrice: BigInt(l.item.effectivePrice),
-            // Real shops don't yet plumb the on-chain "no credit purchases" tier
-            // flag through to Item (extras only carries it for the demo fixture).
-            cantBuyWithCredits: false,
+            cantBuyWithCredits: l.item.cantBuyWithCredits,
             name: l.item.name,
           }))}
           onClose={() => setCheckout(false)}
           onPurchased={() => {
+            // Only the cart clears here — BuyFlow stays mounted showing its
+            // own success/unverified screen; it closes itself (onClose) when
+            // the buyer dismisses that screen. Closing the dialog here too
+            // would unmount BuyFlow in the same tick as setPhase("success"),
+            // so the success screen would never paint.
             setCart({});
-            setCheckout(false);
           }}
         />
       )}
@@ -763,6 +765,7 @@ function Manage({
                 allowOwnerMint: draft.ownerMint,
                 transfersPausable: draft.nonTransferable,
                 cantBeRemoved: draft.permanent,
+                cantBuyWithCredits: !draft.credits,
                 kind: draft.kind,
               },
             ]);

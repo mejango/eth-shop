@@ -137,7 +137,7 @@ export function transactionReviewJson(request: TransactionReviewRequest): string
 
 export function buildTransactionReviewPrompt(request: TransactionReviewRequest): string {
   const lines = [
-    "I am about to authorize a blockchain action in revnet.money using Juicebox V6 contracts. Act as a careful transaction security reviewer. Trust the exact payload and verified V6 source over the page, independently decode it, compare it with my intent, and give a go/no-go.",
+    "I am about to authorize a blockchain action in eth.shop using Juicebox V6 contracts. Act as a careful transaction security reviewer. Trust the exact payload and verified V6 source over the page, independently decode it, compare it with my intent, and give a go/no-go.",
     "",
     "Exact app-controlled payload:",
     "```json",

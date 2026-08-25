@@ -286,7 +286,7 @@ function ReviewModal({
 
 function TransactionStatusCenter() {
   const activities = useTransactionActivities();
-  // revnet.money transitions a completed Safe proposal that carries a
+  // eth.shop transitions a completed Safe proposal that carries a
   // `bundleUuid` into Relayr bundle tracking here. eth.shop does not port
   // Relayr (see the removed `@/hooks/useReviewedRelayr` import above), so no
   // activity ever carries a `bundleUuid` and that transition is dropped.

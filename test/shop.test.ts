@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isRevnetFor, isRevnetOwner, mergeTierMeta, resolvedMediaUrl } from "@/lib/shop";
+import { isRevnetFor, isRevnetOwner, mapAcceptedTokens, mergeTierMeta, resolvedMediaUrl } from "@/lib/shop";
 
 describe("mergeTierMeta", () => {
   it("keys rows by tierId, resolves a valid ipfs CID through the gateway, reads flags", () => {
@@ -67,6 +67,63 @@ describe("isRevnetOwner", () => {
 
   it("is false when there's no REVOwner deployment on the chain", () => {
     expect(isRevnetOwner(REV_OWNER, null)).toBe(false);
+  });
+});
+
+describe("mapAcceptedTokens", () => {
+  const NATIVE = "0x000000000000000000000000000000000000EEEe";
+  const BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+
+  it("labels the native token ETH", () => {
+    const result = mapAcceptedTokens([{ token: NATIVE, decimals: 18, currency: 1 }], 8453);
+    expect(result).toEqual([{ token: NATIVE, decimals: 18, currency: 1, symbol: "ETH" }]);
+  });
+
+  it("matches the native token case-insensitively", () => {
+    const result = mapAcceptedTokens(
+      [{ token: NATIVE.toLowerCase() as `0x${string}`, decimals: 18, currency: 1 }],
+      8453,
+    );
+    expect(result[0].symbol).toBe("ETH");
+  });
+
+  it("labels the chain's known USDC address USDC", () => {
+    const result = mapAcceptedTokens([{ token: BASE_USDC, decimals: 6, currency: 2 }], 8453);
+    expect(result).toEqual([{ token: BASE_USDC, decimals: 6, currency: 2, symbol: "USDC" }]);
+  });
+
+  it("matches USDC case-insensitively", () => {
+    const result = mapAcceptedTokens(
+      [{ token: BASE_USDC.toLowerCase() as `0x${string}`, decimals: 6, currency: 2 }],
+      8453,
+    );
+    expect(result[0].symbol).toBe("USDC");
+  });
+
+  it("falls back to TOKEN for anything else", () => {
+    const other = "0x0000000000000000000000000000000000dEaD";
+    const result = mapAcceptedTokens([{ token: other, decimals: 18, currency: 2 }], 8453);
+    expect(result[0].symbol).toBe("TOKEN");
+  });
+
+  it("falls back to TOKEN for USDC's address on a chain with no known USDC deployment", () => {
+    // 8453's USDC address happens not to be registered for a chain id with no
+    // USDC_ADDRESSES entry — using an unsupported chain id exercises that branch.
+    const result = mapAcceptedTokens([{ token: BASE_USDC, decimals: 6, currency: 2 }], 999999 as never);
+    expect(result[0].symbol).toBe("TOKEN");
+  });
+
+  it("maps multiple contexts independently", () => {
+    const other = "0x0000000000000000000000000000000000dEaD";
+    const result = mapAcceptedTokens(
+      [
+        { token: NATIVE, decimals: 18, currency: 1 },
+        { token: BASE_USDC, decimals: 6, currency: 2 },
+        { token: other, decimals: 18, currency: 2 },
+      ],
+      8453,
+    );
+    expect(result.map((r) => r.symbol)).toEqual(["ETH", "USDC", "TOKEN"]);
   });
 });
 

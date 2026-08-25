@@ -3,6 +3,7 @@ import { Art, Availability, ItemCard, Price } from "@/components/ItemCard";
 import { blankItem, type ItemDraft } from "@/components/sell/draft";
 import { ItemFields } from "@/components/sell/ItemFields";
 import { Check, Field, More, field } from "@/components/sell/ui";
+import { BuyFlow } from "@/components/shop/BuyFlow";
 import { formatPrice } from "@/lib/items";
 import type { Item, Shop } from "@/lib/types";
 import { TIER_UNLIMITED_SUPPLY } from "@bananapus/nana-sdk-core/v6";
@@ -168,7 +169,7 @@ export function ShopView({
       )}
 
       {/* Cart bar */}
-      {demo && !manage && (cartCount > 0 || credits > 0 || owned.length > 0) && (
+      {!manage && (cartCount > 0 || (demo && (credits > 0 || owned.length > 0))) && (
         <div className="fixed inset-x-0 bottom-0 z-10 border-t border-shelf-deep bg-paper px-5 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-baseline gap-4 text-sm">
@@ -178,7 +179,7 @@ export function ShopView({
                   {fmt(cartTotal)} {unit}
                 </b>
               </span>
-              {credits > 0 && (
+              {demo && credits > 0 && (
                 <span className="text-mute">
                   You have{" "}
                   <b className="font-mono text-ink">
@@ -187,7 +188,7 @@ export function ShopView({
                   credit here
                 </span>
               )}
-              {owned.length > 0 && (
+              {demo && owned.length > 0 && (
                 <span className="text-mute">
                   You own <b className="font-mono text-ink">{owned.length}</b> item
                   {owned.length > 1 && "s"} from this shop
@@ -258,57 +259,73 @@ export function ShopView({
                 <dt className="text-mute">Sold</dt>
                 <dd className="text-right font-mono">{openItem.sold}</dd>
               </dl>
-              {demo ? (
-                <div className="mt-auto space-y-2 pt-6">
+              <div className="mt-auto space-y-2 pt-6">
+                <button
+                  type="button"
+                  disabled={openItem.remaining === 0}
+                  className={`${primary} w-full py-3 text-lg`}
+                  onClick={() => {
+                    add(openItem.tierId);
+                    setOpen(undefined);
+                    setCheckout(true);
+                  }}
+                >
+                  {openItem.remaining === 0
+                    ? "Sold out"
+                    : `Buy for ${priceOf(openItem, shop) ? `${fmt(priceOf(openItem, shop))} ${unit}` : "free"}`}
+                </button>
+                <button
+                  type="button"
+                  disabled={openItem.remaining === 0}
+                  className={`${ghost} w-full`}
+                  onClick={() => {
+                    add(openItem.tierId);
+                    setOpen(undefined);
+                  }}
+                >
+                  Add to cart
+                </button>
+                {demo && !!extras[openItem.tierId]?.reservePending && (
                   <button
                     type="button"
-                    disabled={openItem.remaining === 0}
-                    className={`${primary} w-full py-3 text-lg`}
-                    onClick={() => {
-                      add(openItem.tierId);
-                      setOpen(undefined);
-                      setCheckout(true);
-                    }}
-                  >
-                    {openItem.remaining === 0
-                      ? "Sold out"
-                      : `Buy for ${priceOf(openItem, shop) ? `${fmt(priceOf(openItem, shop))} ${unit}` : "free"}`}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={openItem.remaining === 0}
+                    disabled={shop.ruleset.pauseMintPendingReserves}
                     className={`${ghost} w-full`}
-                    onClick={() => {
-                      add(openItem.tierId);
-                      setOpen(undefined);
-                    }}
+                    onClick={() => mintReserves(openItem)}
                   >
-                    Add to cart
+                    Mint {extras[openItem.tierId]?.reservePending} reserved to{" "}
+                    {openItem.reserveBeneficiary} (anyone can)
                   </button>
-                  {!!extras[openItem.tierId]?.reservePending && (
-                    <button
-                      type="button"
-                      disabled={shop.ruleset.pauseMintPendingReserves}
-                      className={`${ghost} w-full`}
-                      onClick={() => mintReserves(openItem)}
-                    >
-                      Mint {extras[openItem.tierId]?.reservePending} reserved to{" "}
-                      {openItem.reserveBeneficiary} (anyone can)
-                    </button>
-                  )}
-                  <Holder item={openItem} shop={shop} owned={owned} setOwned={setOwned} sign={sign} />
-                  {openItem.kind === "physical" && (
-                    <p className="text-center text-xs text-mute">
-                      Shipping details are shared privately with the shop after purchase.
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <p className="mt-6 text-sm text-mute">Buying opens soon.</p>
-              )}
+                )}
+                {demo && <Holder item={openItem} shop={shop} owned={owned} setOwned={setOwned} sign={sign} />}
+                {openItem.kind === "physical" && (
+                  <p className="text-center text-xs text-mute">
+                    Shipping details are shared privately with the shop after purchase.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </Dialog>
+      )}
+
+      {checkout && !demo && (
+        <BuyFlow
+          shop={shop}
+          lines={cartLines.map((l) => ({
+            tierId: l.item.tierId,
+            qty: l.qty,
+            effectivePrice: BigInt(l.item.effectivePrice),
+            // Real shops don't yet plumb the on-chain "no credit purchases" tier
+            // flag through to Item (extras only carries it for the demo fixture).
+            cantBuyWithCredits: false,
+            name: l.item.name,
+          }))}
+          onClose={() => setCheckout(false)}
+          onPurchased={() => {
+            setCart({});
+            setCheckout(false);
+          }}
+        />
       )}
 
       {demo && checkout && (

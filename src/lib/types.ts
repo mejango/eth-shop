@@ -22,6 +22,8 @@ export type Shop = {
   ruleset: { pauseTransfers: boolean; pauseMintPendingReserves: boolean; cashOut: boolean };
   owner: Address;
   surplus?: string;
+  /** Tokens the project's terminal has an accounting context for, i.e. can be paid with directly. */
+  acceptedTokens: { token: Address; decimals: number; currency: number; symbol: string }[];
 };
 
 export type Item = {

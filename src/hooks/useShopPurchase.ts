@@ -65,7 +65,10 @@ export function useCheckoutTerminal(
   const publicClient = usePublicClient({ chainId });
 
   const query = useQuery({
-    queryKey: ["checkoutTerminal", chainId, projectId, token],
+    // projectId is a bigint: react-query's default key hasher runs
+    // JSON.stringify, which throws on BigInt, so every bigint here is
+    // stringified for the key (the queryFn below still uses the real value).
+    queryKey: ["checkoutTerminal", chainId, projectId?.toString(), token],
     queryFn: async () => {
       if (!chainId || projectId === undefined || !token || !publicClient) {
         throw new Error("Missing required parameters");
@@ -104,7 +107,15 @@ export function usePricePerUnit(
   const publicClient = usePublicClient({ chainId });
 
   const query = useQuery({
-    queryKey: ["pricePerUnit", chainId, projectId, payCurrency, pricingCurrency, payDecimals],
+    // Same BigInt-key-hashing reason as useCheckoutTerminal above.
+    queryKey: [
+      "pricePerUnit",
+      chainId,
+      projectId?.toString(),
+      payCurrency?.toString(),
+      pricingCurrency?.toString(),
+      payDecimals,
+    ],
     queryFn: async () => {
       if (
         !chainId ||

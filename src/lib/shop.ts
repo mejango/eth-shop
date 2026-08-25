@@ -1,6 +1,6 @@
 import "server-only";
-import { getJBContractAddress, isContractRevertError, RevnetCoreContracts, type JBChainId } from "@bananapus/nana-sdk-core";
-import { decode721RulesetMetadata, getCurrentRuleset, getProject721Shop, parseTierMetadataJson, tierDisplayMetadata, tierMediaImageUrl, type Project721Tier } from "@bananapus/nana-sdk-core/v6";
+import { getJBContractAddress, isContractRevertError, NATIVE_TOKEN, RevnetCoreContracts, USDC_ADDRESSES, type JBChainId } from "@bananapus/nana-sdk-core";
+import { decode721RulesetMetadata, getAccountingContexts, getCurrentRuleset, getProject721Shop, parseTierMetadataJson, tierDisplayMetadata, tierMediaImageUrl, type Project721Tier } from "@bananapus/nana-sdk-core/v6";
 import type { Address } from "viem";
 import { bendystraw } from "./bendystraw";
 import { publicClientFor } from "./chains";
@@ -68,6 +68,30 @@ export function isRevnetOwner(owner: Address, revOwner: Address | null): boolean
 // minted, or the probe otherwise came back empty).
 export function isRevnetFor(ownerProbe: Address | null, revOwner: Address | null, bendyFlag: boolean): boolean {
   return ownerProbe !== null ? isRevnetOwner(ownerProbe, revOwner) : bendyFlag;
+}
+
+/**
+ * Map the project's raw accounting contexts to the tokens a buyer can pay
+ * with directly, with a display symbol: native gets "ETH", the chain's known
+ * USDC address (if the SDK exports one for this chain) gets "USDC", and
+ * anything else falls back to "TOKEN" rather than guessing.
+ */
+export function mapAcceptedTokens(
+  contexts: readonly { token: Address; decimals: number; currency: number }[],
+  chainId: JBChainId,
+): Shop["acceptedTokens"] {
+  const usdc = USDC_ADDRESSES[chainId as keyof typeof USDC_ADDRESSES] as Address | undefined;
+  return contexts.map((c) => ({
+    token: c.token,
+    decimals: c.decimals,
+    currency: c.currency,
+    symbol:
+      c.token.toLowerCase() === NATIVE_TOKEN.toLowerCase()
+        ? "ETH"
+        : usdc && c.token.toLowerCase() === usdc.toLowerCase()
+          ? "USDC"
+          : "TOKEN",
+  }));
 }
 
 export function mergeTierMeta(rows: BendyTier[]): Map<number, TierMeta> {
@@ -171,11 +195,12 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
   // hook, for every non-revnet project — reuse it instead of a second
   // currentRulesetOf call. It's null only for revnets, whose hook comes from
   // REVOwner without a ruleset read, so getCurrentRuleset is still needed there.
-  const [rulesetWithMetadata, flags, handle, rawTiers] = await Promise.all([
+  const [rulesetWithMetadata, flags, handle, rawTiers, accountingContexts] = await Promise.all([
     sdk.ruleset ? Promise.resolve(sdk.ruleset) : getCurrentRuleset(client, { chainId, projectId }),
     client.readContract({ address: sdk.store, abi: storeFlagsAbi, functionName: "flagsOf", args: [sdk.hook] }),
     handleFor(chainId, projectId),
     readAllActiveTiers(client, sdk.store, sdk.hook),
+    getAccountingContexts(client, { chainId, projectId }),
   ]);
   const app = decode721RulesetMetadata(rulesetWithMetadata.metadata.metadata);
   const hookRow = bendy?.nftHooks.items.find((h) => h.address.toLowerCase() === sdk.hook.toLowerCase());
@@ -232,6 +257,7 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
       cashOut: rulesetWithMetadata.metadata.useDataHookForCashOut,
     },
     owner,
+    acceptedTokens: mapAcceptedTokens(accountingContexts, chainId),
   };
   const items = tiers.map((t) => mapItem({ shopSlug: slug, tier: t, meta: meta.get(t.id), currency, decimals: sdk.pricing.decimals }));
   return { shop, items };

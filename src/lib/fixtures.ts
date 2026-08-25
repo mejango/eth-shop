@@ -26,6 +26,8 @@ export const demoShop: Shop = {
   ruleset: { pauseTransfers: false, pauseMintPendingReserves: false, cashOut: true },
   owner: ZERO,
   surplus: "1.24",
+  // The demo never mounts BuyFlow (the only consumer of acceptedTokens), so this stays empty.
+  acceptedTokens: [],
 };
 
 const wei = (eth: number) => BigInt(Math.round(eth * 1e18));

@@ -10,7 +10,8 @@ import { slugFor } from "./slug";
 import { readAllActiveTiers } from "./tiers";
 import type { Item, Shop } from "./types";
 
-const GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY ?? "https://juicebox.center/ipfs/";
+// `||` on purpose: the Dockerfile materializes unset build args as empty strings, which `??` misses.
+const GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY?.trim() || "https://juicebox.center/ipfs/";
 const ZERO = "0x0000000000000000000000000000000000000000";
 
 export type BendyTier = {

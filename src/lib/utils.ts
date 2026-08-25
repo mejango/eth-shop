@@ -1,3 +1,4 @@
+import { JB_CHAINS, type JBChainId } from "@bananapus/nana-sdk-core";
 import { twMerge } from "tailwind-merge";
 
 export type ClassValue =
@@ -15,4 +16,29 @@ function joinClassValues(value: ClassValue): string {
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(inputs.map(joinClassValues).filter(Boolean).join(" "));
+}
+
+/**
+ * The single source for block-explorer origins (e.g. "https://basescan.org").
+ *
+ * Hostnames come from the SDK's chain definitions. Returns undefined for chains
+ * the SDK doesn't know, so callers fail closed instead of linking to
+ * `https://undefined/...`.
+ */
+export function explorerBaseUrl(chainId: number): string | undefined {
+  const chainMeta = JB_CHAINS[chainId as JBChainId];
+  if (!chainMeta) return undefined;
+  return `https://${chainMeta.etherscanHostname}`;
+}
+
+export function formatWalletError(error: unknown, defaultMessage = "Please try again") {
+  if (typeof error === "string") return error;
+  if (!error || typeof error !== "object") return defaultMessage;
+
+  const { shortMessage, message } = error as Record<string, unknown>;
+  if (typeof shortMessage === "string" && shortMessage) {
+    return shortMessage.replace("User rejected", "You rejected");
+  }
+  if (typeof message === "string" && message) return message;
+  return defaultMessage;
 }

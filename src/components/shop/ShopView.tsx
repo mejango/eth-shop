@@ -85,6 +85,9 @@ export function ShopView({
   const buyableChains = availableChainIds(cartLines, shops, shop.chainId);
   const buyChainId = buyableChains.includes(buyChain) ? buyChain : (buyableChains[0] ?? shop.chainId);
   const buyShop = shops.find((s) => s.chainId === buyChainId) ?? shop;
+  // Never hand BuyFlow a chain that can't fill every line: tierIdOn's canonical
+  // fallback could otherwise send a peer chain's tier id to the wrong chain.
+  const noChainCanFill = cartLines.length > 0 && buyableChains.length === 0;
   const add = (tierId: number, n = 1) => setCart((c) => ({ ...c, [tierId]: (c[tierId] ?? 0) + n }));
 
   const mintReserves = (item: Item) => {
@@ -214,14 +217,21 @@ export function ShopView({
                 </span>
               )}
             </div>
-            <button
-              type="button"
-              className={primary}
-              disabled={cartCount === 0}
-              onClick={() => setCheckout(true)}
-            >
-              Check out
-            </button>
+            <div className="flex items-center gap-3">
+              {noChainCanFill && (
+                <span className="text-xs text-mute">
+                  No single chain has enough stock for this cart. Lower a quantity or split it up.
+                </span>
+              )}
+              <button
+                type="button"
+                className={primary}
+                disabled={cartCount === 0 || noChainCanFill}
+                onClick={() => setCheckout(true)}
+              >
+                Check out
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -342,7 +352,7 @@ export function ShopView({
         </Dialog>
       )}
 
-      {checkout && !demo && (
+      {checkout && !demo && !noChainCanFill && (
         <BuyFlow
           key={buyChainId}
           shop={buyShop}

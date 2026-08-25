@@ -109,3 +109,15 @@ describe("availableChainIds", () => {
     expect(availableChainIds([{ item: item({ remaining: undefined }), qty: 3 }], [shopOn(1)], 1)).toEqual([1]);
   });
 });
+
+describe("no chain can fill", () => {
+  it("returns empty when per-chain stock is below qty even though the merged total covers it", () => {
+    const shops = [shopOn(1), shopOn(8453)];
+    const merged = mergeCatalogs([
+      { shop: shopOn(1), items: [item({ remaining: 1 })] },
+      { shop: shopOn(8453), items: [item({ remaining: 1 })] },
+    ]);
+    expect(merged[0].remaining).toBe(2);
+    expect(availableChainIds([{ item: merged[0], qty: 2 }], shops, 1)).toEqual([]);
+  });
+});

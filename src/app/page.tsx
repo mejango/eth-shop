@@ -22,7 +22,7 @@ export default async function Home() {
     <>
       <Header />
       <HandleHero />
-      <section id="buy" className="scroll-mt-14 border-t border-shelf-deep px-5 pt-8">
+      <section id="buy" className="scroll-mt-14 px-5 pt-8">
         <h2 className="text-sm text-mute">Selling right now</h2>
       </section>
       {feed ? (

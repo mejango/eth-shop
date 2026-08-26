@@ -292,14 +292,9 @@ export function ShopView({
                 </p>
                 {shops.length > 1 && openItem.chains ? (
                   <details className="group max-w-56">
-                    <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-                      <div className="text-xs text-mute">Stock</div>
-                      <div className="mt-0.5">
-                        <Availability item={openItem} />{" "}
-                        <span className="inline-block text-xs text-mute transition-transform group-open:rotate-180">
-                          ▾
-                        </span>
-                      </div>
+                    <summary className="cursor-pointer list-none font-mono text-[11px] text-mute opacity-60 [&::-webkit-details-marker]:hidden">
+                      Stock: <Availability item={openItem} />{" "}
+                      <span className="inline-block transition-transform group-open:rotate-180">▾</span>
                     </summary>
                     <div className="mt-2 space-y-1 text-xs">
                       {openItem.chains.map((c) => (
@@ -313,12 +308,9 @@ export function ShopView({
                     </div>
                   </details>
                 ) : (
-                  <div>
-                    <div className="text-xs text-mute">Stock</div>
-                    <div className="mt-0.5">
-                      <Availability item={openItem} />
-                    </div>
-                  </div>
+                  <p className="font-mono text-[11px] text-mute opacity-60">
+                    Stock: <Availability item={openItem} />
+                  </p>
                 )}
               </div>
               {finePrint(openItem, shop, extras[openItem.tierId]).length > 0 && (

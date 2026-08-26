@@ -132,15 +132,21 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
             <div className="grid grid-cols-2 gap-6">
               <Field label="Collection name">
                 <input
-                  value={shop.collectionName}
+                  value={shop.collectionName || shop.name}
                   onChange={(e) => setS({ collectionName: e.target.value })}
                   className={field}
-                  placeholder={shop.name || "Your shop"}
+                  placeholder="Your shop"
                 />
               </Field>
               <Field label="Symbol">
                 <input
-                  value={shop.symbol}
+                  value={
+                    shop.symbol ||
+                    shop.name
+                      .replace(/[^a-zA-Z0-9]/g, "")
+                      .slice(0, 6)
+                      .toUpperCase()
+                  }
                   onChange={(e) =>
                     setS({
                       symbol: e.target.value
@@ -150,10 +156,7 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
                     })
                   }
                   className={`${field} font-mono`}
-                  placeholder={(shop.name || "SHOP")
-                    .replace(/[^a-zA-Z0-9]/g, "")
-                    .slice(0, 6)
-                    .toUpperCase()}
+                  placeholder="SHOP"
                 />
               </Field>
             </div>

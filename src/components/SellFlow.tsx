@@ -53,18 +53,6 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
           }}
           className="space-y-8"
         >
-          <Field label="Link">
-            <span className="flex items-baseline font-mono text-2xl">
-              <span className="text-mute">eth.shop/</span>
-              <input
-                required
-                value={shop.handle}
-                onChange={(e) => setS({ handle: clean(e.target.value) })}
-                className={`${field} font-mono text-2xl`}
-                placeholder="you"
-              />
-            </span>
-          </Field>
           <Field label="Shop name">
             <input
               required
@@ -286,7 +274,7 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
       {step === 2 && (
         <div>
           <p className="text-sm text-mute">
-            This is how eth.shop/{shop.handle || "you"} will look.
+            This is how {shop.name || "your shop"} will look.
           </p>
           <div className="mt-4 rounded-md border border-shelf-deep p-6">
             <p className="display text-3xl font-extrabold">{shop.name || "Your shop"}</p>

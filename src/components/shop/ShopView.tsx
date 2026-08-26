@@ -331,7 +331,7 @@ export function ShopView({
                     Fine print{" "}
                     <span className="inline-block transition-transform group-open:rotate-180">▾</span>
                   </summary>
-                  <ul className="mt-2 space-y-1.5">
+                  <ul className="mt-2 list-disc space-y-1.5 pl-4">
                     {finePrint(openItem, shop, extras[openItem.tierId]).map((line) => (
                       <li key={line}>{line}</li>
                     ))}

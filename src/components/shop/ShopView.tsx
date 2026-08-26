@@ -22,7 +22,7 @@ type Extras = Record<
   number,
   { reservePending?: number; noCredits?: boolean; splitPercent?: number; splitTo?: string }
 >;
-const btn = "rounded-full px-4 py-2 text-sm font-medium";
+const btn = "rounded-md px-4 py-2 text-sm font-medium";
 const primary = `${btn} bg-accent text-ink hover:bg-accent-ink disabled:bg-shelf-deep disabled:text-mute`;
 const ghost = `${btn} border border-ink hover:bg-shelf disabled:border-shelf-deep disabled:text-mute`;
 const fmt = (n: number) => +n.toPrecision(4);
@@ -274,22 +274,18 @@ export function ShopView({
                   <Badge>{openItem.discountPercent / 2}% off</Badge>
                 </ul>
               )}
-              <div className="tag mt-6 space-y-4 pt-4 text-sm">
+              <div className="tag mt-6 space-y-1.5 pt-4 text-sm">
                 <div>
                   <div className="text-xs text-mute">Price</div>
                   <div className="mt-0.5">
                     <Price item={openItem} big />
                   </div>
                 </div>
-                <p className="font-mono text-[11px] text-mute opacity-60">
-                  {cats.length > 1 && (
-                    <>
-                      Category: {openItem.categoryName}
-                      <span className="mx-2">|</span>
-                    </>
-                  )}
-                  Type: {openItem.kind === "digital" ? "Digital" : "Physical"}
-                </p>
+                {cats.length > 1 && (
+                  <p className="font-mono text-[11px] text-mute opacity-60">
+                    Category: {openItem.categoryName}
+                  </p>
+                )}
                 {shops.length > 1 && openItem.chains ? (
                   <details className="group max-w-56">
                     <summary className="cursor-pointer list-none font-mono text-[11px] text-mute opacity-60 [&::-webkit-details-marker]:hidden">
@@ -312,10 +308,13 @@ export function ShopView({
                     Stock: <Availability item={openItem} />
                   </p>
                 )}
+                <p className="font-mono text-[11px] text-mute opacity-60">
+                  Type: {openItem.kind === "digital" ? "Digital" : "Physical"}
+                </p>
               </div>
               {finePrint(openItem, shop, extras[openItem.tierId]).length > 0 && (
-                <details className="group mt-5 text-xs text-mute">
-                  <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                <details className="group mt-1.5 text-xs text-mute">
+                  <summary className="cursor-pointer list-none font-mono text-[11px] opacity-60 [&::-webkit-details-marker]:hidden">
                     Fine print{" "}
                     <span className="inline-block transition-transform group-open:rotate-180">▾</span>
                   </summary>

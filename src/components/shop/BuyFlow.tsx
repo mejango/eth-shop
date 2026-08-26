@@ -49,9 +49,9 @@ const SLIPPAGE_BPS = 100n;
 const IN_FLIGHT: readonly BuyPhase[] = ["approving", "simulating", "signing", "pending", "verifying"];
 
 const primary =
-  "rounded-full px-4 py-2 text-sm font-medium bg-accent text-ink hover:bg-accent-ink disabled:bg-shelf-deep disabled:text-mute w-full py-3 text-lg";
+  "rounded-md px-4 py-2 text-sm font-medium bg-accent text-ink hover:bg-accent-ink disabled:bg-shelf-deep disabled:text-mute w-full py-3 text-lg";
 const ghost =
-  "rounded-full px-4 py-2 text-sm font-medium border border-ink hover:bg-shelf disabled:border-shelf-deep disabled:text-mute";
+  "rounded-md px-4 py-2 text-sm font-medium border border-ink hover:bg-shelf disabled:border-shelf-deep disabled:text-mute";
 
 function isNativeToken(token: Address): boolean {
   return token.toLowerCase() === NATIVE_TOKEN.toLowerCase();

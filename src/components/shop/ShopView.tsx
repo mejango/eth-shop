@@ -330,6 +330,17 @@ export function ShopView({
                 <button
                   type="button"
                   disabled={openItem.remaining === 0}
+                  className={`${ghost} flex-1`}
+                  onClick={() => {
+                    add(openItem.tierId);
+                    setOpen(undefined);
+                  }}
+                >
+                  Add to cart
+                </button>
+                <button
+                  type="button"
+                  disabled={openItem.remaining === 0}
                   className={`${primary} flex-1 py-3 text-lg`}
                   onClick={() => {
                     add(openItem.tierId);
@@ -340,17 +351,6 @@ export function ShopView({
                   {openItem.remaining === 0
                     ? "Sold out"
                     : `Buy for ${priceOf(openItem, shop) ? `${fmt(priceOf(openItem, shop))} ${unit}` : "free"}`}
-                </button>
-                <button
-                  type="button"
-                  disabled={openItem.remaining === 0}
-                  className={`${ghost} flex-1`}
-                  onClick={() => {
-                    add(openItem.tierId);
-                    setOpen(undefined);
-                  }}
-                >
-                  Add to cart
                 </button>
                 {demo && !!extras[openItem.tierId]?.reservePending && (
                   <button

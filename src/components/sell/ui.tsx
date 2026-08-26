@@ -1,5 +1,5 @@
 export const field =
-  "w-full border-b-2 border-shelf-deep bg-transparent pt-2 pb-3 text-lg outline-none focus:border-accent focus-visible:outline-none";
+  "field-underline w-full border-b-2 border-shelf-deep bg-transparent pt-2 pb-3 text-lg outline-none focus:border-accent";
 
 export function Field({
   label,

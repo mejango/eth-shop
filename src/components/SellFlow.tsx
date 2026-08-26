@@ -1,12 +1,15 @@
 "use client";
 import { useState } from "react";
 import { Art } from "./ItemCard";
+import { ChainMark } from "@/components/ChainMark";
 import { CHAINS, blankItem, blankShop, type ItemDraft, type ShopDraft } from "./sell/draft";
 import { ItemFields } from "./sell/ItemFields";
-import { Field, More, Pills, PillsMulti, field } from "./sell/ui";
+import { Field, Pills, field } from "./sell/ui";
 import { formatPrice } from "@/lib/items";
 import type { Currency } from "@/lib/types";
 import { parseUnits } from "viem";
+
+const CHAIN_IDS: Record<ShopDraft["chains"][number], number> = { eth: 1, op: 10, base: 8453, arb: 42161 };
 
 const clean = (s: string) =>
   s
@@ -93,22 +96,6 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
               </div>
             </div>
             <fieldset>
-              <legend className="mb-2 text-sm text-mute">Chains</legend>
-              <PillsMulti
-                values={shop.chains}
-                options={Object.entries(CHAINS) as [ShopDraft["chains"][number], string][]}
-                onToggle={(c) =>
-                  setS({
-                    chains: shop.chains.includes(c)
-                      ? shop.chains.length > 1
-                        ? shop.chains.filter((x) => x !== c)
-                        : shop.chains
-                      : [...shop.chains, c],
-                  })
-                }
-              />
-            </fieldset>
-            <fieldset>
               <legend className="mb-2 text-sm text-mute">Price items in</legend>
               <Pills
                 name="currency"
@@ -125,42 +112,39 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
               </p>
             </fieldset>
 
-          <More label="Shop settings">
-            <p className="text-xs text-mute">
-              Name and symbol can change later. Everything else is fixed when the shop opens.
-            </p>
-            <div className="grid grid-cols-2 gap-6">
-              <Field label="Collection name">
-                <input
-                  value={shop.collectionName || shop.name}
-                  onChange={(e) => setS({ collectionName: e.target.value })}
-                  className={field}
-                  placeholder="Your shop"
-                />
-              </Field>
-              <Field label="Symbol">
-                <input
-                  value={
-                    shop.symbol ||
-                    shop.name
-                      .replace(/[^a-zA-Z0-9]/g, "")
-                      .slice(0, 6)
-                      .toUpperCase()
-                  }
-                  onChange={(e) =>
-                    setS({
-                      symbol: e.target.value
-                        .toUpperCase()
-                        .replace(/[^A-Z0-9]/g, "")
-                        .slice(0, 11),
-                    })
-                  }
-                  className={`${field} font-mono`}
-                  placeholder="SHOP"
-                />
-              </Field>
-            </div>
-          </More>
+            <fieldset>
+              <legend className="mb-2 text-sm text-mute">Chains</legend>
+              <div className="flex flex-wrap gap-2">
+                {(Object.entries(CHAINS) as [ShopDraft["chains"][number], string][]).map(
+                  ([c, label]) => {
+                    const on = shop.chains.includes(c);
+                    return (
+                      <label
+                        key={c}
+                        title={label}
+                        className={`flex cursor-pointer items-center justify-center rounded-md border p-2 ${on ? "border-ink bg-shelf" : "border-shelf-deep opacity-40 hover:opacity-100"}`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={on}
+                          onChange={() =>
+                            setS({
+                              chains: on
+                                ? shop.chains.length > 1
+                                  ? shop.chains.filter((x) => x !== c)
+                                  : shop.chains
+                                : [...shop.chains, c],
+                            })
+                          }
+                        />
+                        <ChainMark chainId={CHAIN_IDS[c]} className="h-5 w-5" />
+                      </label>
+                    );
+                  },
+                )}
+              </div>
+            </fieldset>
 
           <button className={primary}>Next: add items</button>
         </form>

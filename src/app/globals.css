@@ -37,6 +37,11 @@ html {
   outline-offset: 2px;
 }
 
+/* Underline fields signal focus with the accent rule itself — no box ring on top. */
+.field-underline:focus-visible {
+  outline: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

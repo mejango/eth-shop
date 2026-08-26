@@ -262,6 +262,10 @@ export function ShopView({
             )}
             <div className="flex flex-col bg-shelf-light p-6">
               <h2 className="display text-2xl font-extrabold">{openItem.name}</h2>
+              <p className="mt-1 font-mono text-xs text-mute">
+                {cats.length > 1 && `${openItem.categoryName} / `}
+                <span className="capitalize">{openItem.kind}</span>
+              </p>
               <p className="mt-3 text-sm text-mute">
                 {openItem.description ??
                   (openItem.kind === "digital"
@@ -273,7 +277,7 @@ export function ShopView({
                   <Badge>{openItem.discountPercent / 2}% off</Badge>
                 </ul>
               )}
-              <div className="tag mt-6 flex flex-wrap gap-x-10 gap-y-4 pt-4 text-sm">
+              <div className="tag mt-6 space-y-4 pt-4 text-sm">
                 <div>
                   <div className="text-xs text-mute">Price</div>
                   <div className="mt-0.5">
@@ -281,9 +285,9 @@ export function ShopView({
                   </div>
                 </div>
                 {shops.length > 1 && openItem.chains ? (
-                  <details className="group">
+                  <details className="group max-w-56">
                     <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-                      <div className="text-xs text-mute">Availability</div>
+                      <div className="text-xs text-mute">Stock</div>
                       <div className="mt-0.5">
                         <Availability item={openItem} />{" "}
                         <span className="inline-block text-xs text-mute transition-transform group-open:rotate-180">
@@ -304,25 +308,19 @@ export function ShopView({
                   </details>
                 ) : (
                   <div>
-                    <div className="text-xs text-mute">Availability</div>
+                    <div className="text-xs text-mute">Stock</div>
                     <div className="mt-0.5">
                       <Availability item={openItem} />
                     </div>
                   </div>
                 )}
-                {cats.length > 1 && (
-                  <div>
-                    <div className="text-xs text-mute">Category</div>
-                    <div className="mt-0.5">{openItem.categoryName}</div>
-                  </div>
-                )}
-                <div>
-                  <div className="text-xs text-mute">Type</div>
-                  <div className="mt-0.5 capitalize">{openItem.kind}</div>
-                </div>
                 <div>
                   <div className="text-xs text-mute">Sold</div>
-                  <div className="mt-0.5 font-mono">{openItem.sold}</div>
+                  <div className="mt-0.5 font-mono">
+                    {openItem.remaining === undefined
+                      ? openItem.sold
+                      : `${openItem.sold}/${openItem.sold + openItem.remaining}`}
+                  </div>
                 </div>
               </div>
               {finePrint(openItem, shop, extras[openItem.tierId]).length > 0 && (

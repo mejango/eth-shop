@@ -101,8 +101,8 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
                 name="currency"
                 value={shop.currency}
                 options={[
-                  ["ETH", "ETH"],
                   ["USD", "USD"],
+                  ["ETH", "ETH"],
                 ]}
                 onChange={(currency) => setS({ currency })}
               />

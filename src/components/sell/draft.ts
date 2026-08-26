@@ -72,7 +72,7 @@ export const blankShop = (handle = ""): ShopDraft => ({
   about: "",
   logo: "",
   chains: ["eth", "base", "arb", "op"],
-  currency: "ETH",
+  currency: "USD",
   collectionName: "",
   symbol: "",
   exactPayment: false,

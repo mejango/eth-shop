@@ -239,7 +239,7 @@ export function WalletButton() {
         : "Unavailable";
 
   if (!mounted || !isConnected || !address) {
-    return <WalletConnectButton />;
+    return <WalletConnectButton variant="outline" />;
   }
 
   return (

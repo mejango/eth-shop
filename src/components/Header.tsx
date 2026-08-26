@@ -7,9 +7,15 @@ export function Header({ right }: { right?: React.ReactNode }) {
       <Link href="/" className="display text-xl font-extrabold">
         eth<span className="text-accent">.</span>shop
       </Link>
-      <nav className="flex items-center gap-5 text-sm">
+      <nav className="flex items-center gap-3 text-sm">
         {right}
         <WalletButton />
+        <Link
+          href="/sell"
+          className="rounded-md bg-accent px-4 py-2 font-medium hover:bg-accent-ink"
+        >
+          Open a shop
+        </Link>
       </nav>
     </header>
   );

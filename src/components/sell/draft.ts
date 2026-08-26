@@ -71,7 +71,7 @@ export const blankShop = (handle = ""): ShopDraft => ({
   tagline: "",
   about: "",
   logo: "",
-  chains: ["base", "eth", "op", "arb"],
+  chains: ["eth", "base", "arb", "op"],
   currency: "ETH",
   collectionName: "",
   symbol: "",
@@ -88,8 +88,8 @@ export const blankShop = (handle = ""): ShopDraft => ({
 });
 
 export const CHAINS: Record<ShopDraft["chains"][number], string> = {
-  base: "Base",
   eth: "Ethereum",
-  op: "Optimism",
+  base: "Base",
   arb: "Arbitrum",
+  op: "Optimism",
 };

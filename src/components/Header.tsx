@@ -12,7 +12,7 @@ export function Header({ right }: { right?: React.ReactNode }) {
         <WalletButton />
         <Link
           href="/sell"
-          className="rounded-md bg-accent px-4 py-2 font-medium hover:bg-accent-ink"
+          className="inline-flex h-11 items-center rounded-md bg-accent px-4 text-sm font-medium hover:bg-accent-ink"
         >
           Open a shop
         </Link>

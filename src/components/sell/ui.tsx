@@ -81,7 +81,7 @@ export function PillsMulti<T extends string>({
         return (
           <label
             key={v}
-            className={`cursor-pointer rounded-full border px-4 py-2 text-sm ${on ? "border-ink bg-ink text-paper" : "border-shelf-deep hover:border-ink"}`}
+            className={`cursor-pointer rounded-md border px-4 py-2 text-sm ${on ? "border-ink bg-ink text-paper" : "border-shelf-deep hover:border-ink"}`}
           >
             <input type="checkbox" className="sr-only" checked={on} onChange={() => onToggle(v)} />
             {label}
@@ -108,7 +108,7 @@ export function Pills<T extends string>({
       {options.map(([v, label]) => (
         <label
           key={v}
-          className={`cursor-pointer rounded-full border px-4 py-2 text-sm ${value === v ? "border-ink bg-ink text-paper" : "border-shelf-deep hover:border-ink"}`}
+          className={`cursor-pointer rounded-md border px-4 py-2 text-sm ${value === v ? "border-ink bg-ink text-paper" : "border-shelf-deep hover:border-ink"}`}
         >
           <input
             type="radio"

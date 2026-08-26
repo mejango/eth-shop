@@ -9,7 +9,7 @@ export function HandleHero() {
       <div className="mt-8 flex flex-wrap items-center gap-4">
         <Link
           href="/sell"
-          className="rounded-full bg-accent px-6 py-3 text-lg font-medium text-ink hover:bg-accent-ink"
+          className="rounded-md bg-accent px-6 py-3 text-lg font-medium text-ink hover:bg-accent-ink"
         >
           Open a shop
         </Link>

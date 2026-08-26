@@ -35,7 +35,7 @@ export function LoadMore({ initial }: { initial: Feed }) {
             type="button"
             onClick={more}
             disabled={busy}
-            className="rounded-full border border-ink px-5 py-2.5 text-sm hover:bg-shelf disabled:text-mute"
+            className="rounded-md border border-ink px-5 py-2.5 text-sm hover:bg-shelf disabled:text-mute"
           >
             {busy ? "Loading" : "Show more"}
           </button>

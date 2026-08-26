@@ -23,8 +23,8 @@ const previewPrice = (price: string, currency: Currency) => {
   }
 };
 
-const primary = "rounded-full bg-ink px-6 py-3 text-paper hover:bg-accent";
-const secondary = "rounded-full border border-ink px-5 py-3 hover:bg-shelf";
+const primary = "rounded-md bg-ink px-6 py-3 text-paper hover:bg-accent";
+const secondary = "rounded-md border border-ink px-5 py-3 hover:bg-shelf";
 
 // ponytail: three screens, local state only. "Open shop" = launchProjectFor + 721 hook later.
 export function SellFlow({ initialHandle }: { initialHandle: string }) {
@@ -311,7 +311,7 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
             </button>
             <button
               type="button"
-              className="rounded-full bg-accent px-6 py-3 text-ink hover:bg-accent-ink"
+              className="rounded-md bg-accent px-6 py-3 text-ink hover:bg-accent-ink"
             >
               {shop.chains.length === 1
                 ? `Open shop on ${CHAINS[shop.chains[0]]}`

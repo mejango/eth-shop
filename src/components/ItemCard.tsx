@@ -26,7 +26,11 @@ export function Price({ item, big }: { item: Item; big?: boolean }) {
 export function Availability({ item }: { item: Item }) {
   if (item.remaining === 0) return <>sold out</>;
   if (item.remaining === undefined) return <>unlimited</>;
-  return <>{item.remaining} left</>;
+  return (
+    <>
+      {item.remaining}/{item.sold + item.remaining}
+    </>
+  );
 }
 
 export function ItemCard({

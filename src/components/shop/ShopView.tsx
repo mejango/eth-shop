@@ -295,7 +295,7 @@ export function ShopView({
                     <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                       <div className="text-xs text-mute">Stock</div>
                       <div className="mt-0.5">
-                        <Stock item={openItem} />{" "}
+                        <Availability item={openItem} />{" "}
                         <span className="inline-block text-xs text-mute transition-transform group-open:rotate-180">
                           ▾
                         </span>
@@ -316,7 +316,7 @@ export function ShopView({
                   <div>
                     <div className="text-xs text-mute">Stock</div>
                     <div className="mt-0.5">
-                      <Stock item={openItem} />
+                      <Availability item={openItem} />
                     </div>
                   </div>
                 )}
@@ -520,17 +520,6 @@ function finePrint(
   if (shop.ruleset.cashOut)
     lines.push("Owning this item lets you cash it out anytime for its share of the shop's surplus funds.");
   return lines;
-}
-
-/** Remaining/total, e.g. "559/560"; unlimited stays "unlimited". */
-function Stock({ item }: { item: Item }) {
-  if (item.remaining === undefined) return <>unlimited</>;
-  if (item.remaining === 0) return <>sold out</>;
-  return (
-    <>
-      {item.remaining}/{item.sold + item.remaining}
-    </>
-  );
 }
 
 function Badge({ children }: { children: React.ReactNode }) {

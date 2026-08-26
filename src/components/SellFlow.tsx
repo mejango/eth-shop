@@ -113,7 +113,7 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
             </fieldset>
 
             <fieldset>
-              <legend className="mb-2 text-sm text-mute">Chains</legend>
+              <legend className="mb-2 text-sm text-mute">Sold on</legend>
               <div className="flex flex-wrap gap-2">
                 {(Object.entries(CHAINS) as [ShopDraft["chains"][number], string][]).map(
                   ([c, label]) => {

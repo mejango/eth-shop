@@ -117,7 +117,7 @@ async function pricingByHook(
         });
         return [key, { currency: Number(currency), decimals: Number(decimals) }] as const;
       } catch (error) {
-        console.warn("pricingContext read failed", chainId, address, error);
+        console.warn("pricingContext read failed", chainId, address, error instanceof Error ? error.message : String(error));
         return [key, DEFAULT_PRICING] as const;
       }
     }),

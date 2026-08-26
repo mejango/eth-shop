@@ -165,7 +165,7 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
       .then((r) => r.project)
       .catch((error: unknown): ShopQuery["project"] => {
         // lists/metadata are optional; the chain reads below are authoritative
-        console.warn("bendystraw shop query failed", error);
+        console.warn("bendystraw shop query failed", error instanceof Error ? error.message : String(error));
         return null;
       }),
     projectOwner(chainId, projectId).catch((error: unknown) => {
@@ -277,7 +277,7 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
             },
           });
         } catch (error) {
-          console.warn("tier ipfs metadata fetch failed", { tierId: t.id, error });
+          console.warn("tier ipfs metadata fetch failed", t.id, error instanceof Error ? error.message : String(error));
         }
       }),
     );
@@ -362,7 +362,7 @@ async function suckerPeers(chainId: JBChainId, projectId: bigint): Promise<{ cha
     );
     return peers.projects.items;
   } catch (error) {
-    console.warn("suckerPeers failed; rendering single-chain", { chainId, projectId, error });
+    console.warn("suckerPeers failed; rendering single-chain", chainId, projectId, error instanceof Error ? error.message : String(error));
     return [];
   }
 }
@@ -373,10 +373,30 @@ async function suckerPeers(chainId: JBChainId, projectId: bigint): Promise<{ cha
  * inventory (see mergeCatalogs). Peer failures degrade to fewer chains, never an
  * error; a Bendystraw outage degrades to single-chain.
  */
-export async function readOmnichainShop(
-  chainId: JBChainId,
-  projectId: bigint,
-): Promise<{ shop: Shop; items: Item[]; chainShops: Shop[] } | null> {
+type OmniShop = { shop: Shop; items: Item[]; chainShops: Shop[] } | null;
+
+// One fan-out per shop per minute: the 4-chain read is ~300 RPC calls, and doing it
+// per request rate-limited the RPC and pegged the replica. Concurrent requests share
+// the in-flight promise; failures and misses don't stick.
+const OMNI_TTL_MS = 60_000;
+const omniCache = new Map<string, { at: number; promise: Promise<OmniShop> }>();
+
+export function readOmnichainShop(chainId: JBChainId, projectId: bigint): Promise<OmniShop> {
+  const key = `${chainId}:${projectId}`;
+  const hit = omniCache.get(key);
+  if (hit && Date.now() - hit.at < OMNI_TTL_MS) return hit.promise;
+  const promise = readOmnichainShopFresh(chainId, projectId);
+  omniCache.set(key, { at: Date.now(), promise });
+  promise.then(
+    (r) => {
+      if (r === null) omniCache.delete(key);
+    },
+    () => omniCache.delete(key),
+  );
+  return promise;
+}
+
+async function readOmnichainShopFresh(chainId: JBChainId, projectId: bigint): Promise<OmniShop> {
   const [canonical, peers] = await Promise.all([readShop(chainId, projectId), suckerPeers(chainId, projectId)]);
   if (!canonical) return null;
   const others = peers.filter(
@@ -387,7 +407,7 @@ export async function readOmnichainShop(
       ? await Promise.all(
           others.map((p) =>
             readShop(p.chainId as JBChainId, BigInt(p.projectId)).catch((error: unknown) => {
-              console.warn("peer readShop failed; dropping chain", { peer: p, error });
+              console.warn("peer readShop failed; dropping chain", p.chainId, p.projectId, error instanceof Error ? error.message : String(error));
               return null;
             }),
           ),

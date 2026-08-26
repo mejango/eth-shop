@@ -292,11 +292,11 @@ export function ShopView({
                       Stock: <Availability item={openItem} />{" "}
                       <span className="inline-block transition-transform group-open:rotate-180">▾</span>
                     </summary>
-                    <div className="mt-2 space-y-1 text-xs">
+                    <div className="mt-1.5 space-y-1 pl-[7ch] font-mono text-[11px] text-mute opacity-60">
                       {openItem.chains.map((c) => (
-                        <div key={c.chainId} className="flex items-center gap-2">
-                          <ChainMark chainId={c.chainId} className="h-3.5 w-3.5" />
-                          <span className="font-mono">
+                        <div key={c.chainId} className="flex items-center gap-1.5">
+                          <ChainMark chainId={c.chainId} className="h-3 w-3" />
+                          <span>
                             {c.remaining === undefined ? "unlimited" : `${c.remaining}/${c.sold + c.remaining}`}
                           </span>
                         </div>

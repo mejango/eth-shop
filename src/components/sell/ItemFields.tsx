@@ -138,7 +138,7 @@ export function ItemFields({ item, categories, currency, onChange, onAddCategory
                   onChange={(e) =>
                     set({ splits: item.splits.with(i, { ...s, percent: e.target.value }) })
                   }
-                  className={`${field} w-16 font-mono`}
+                  className={`${field} !w-16 font-mono`}
                   placeholder="10"
                   aria-label="Percent"
                 />
@@ -178,7 +178,7 @@ export function ItemFields({ item, categories, currency, onChange, onAddCategory
               inputMode="numeric"
               value={item.discount}
               onChange={(e) => set({ discount: e.target.value })}
-              className={`${field} font-mono`}
+              className={`${field} !w-16 font-mono`}
               placeholder="0"
             />
           </Field>

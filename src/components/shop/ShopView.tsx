@@ -269,15 +269,6 @@ export function ShopView({
                     ? "Delivered as a download in your receipt."
                     : "Ships after purchase.")}
               </p>
-              <p className="mt-2 font-mono text-[11px] text-mute opacity-60">
-                {cats.length > 1 && (
-                  <>
-                    Category: {openItem.categoryName}
-                    <span className="mx-2">|</span>
-                  </>
-                )}
-                Type: {openItem.kind === "digital" ? "Digital" : "Physical"}
-              </p>
               {openItem.discountPercent > 0 && (
                 <ul className="mt-4 flex flex-wrap gap-2 text-xs">
                   <Badge>{openItem.discountPercent / 2}% off</Badge>
@@ -290,6 +281,15 @@ export function ShopView({
                     <Price item={openItem} big />
                   </div>
                 </div>
+                <p className="font-mono text-[11px] text-mute opacity-60">
+                  {cats.length > 1 && (
+                    <>
+                      Category: {openItem.categoryName}
+                      <span className="mx-2">|</span>
+                    </>
+                  )}
+                  Type: {openItem.kind === "digital" ? "Digital" : "Physical"}
+                </p>
                 {shops.length > 1 && openItem.chains ? (
                   <details className="group max-w-56">
                     <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">

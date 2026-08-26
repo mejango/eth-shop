@@ -80,7 +80,7 @@ describe("mergeCatalogs", () => {
       { shop: shopOn(8453), items: [item({ tierId: 5, name: "Base-only" })] },
     ]);
     expect(merged.map((m) => m.name)).toEqual(["Hat", "Base-only"]);
-    expect(merged[1].chains).toEqual([{ chainId: 8453, tierId: 5, remaining: 5 }]);
+    expect(merged[1].chains).toEqual([{ chainId: 8453, tierId: 5, remaining: 5, sold: 5 }]);
   });
 });
 
@@ -130,9 +130,9 @@ describe("same-chain content twins", () => {
     ]);
     expect(merged).toHaveLength(2);
     expect(merged[0].chains).toEqual([
-      { chainId: 8453, tierId: 1, remaining: 5 },
-      { chainId: 1, tierId: 1, remaining: 5 },
+      { chainId: 8453, tierId: 1, remaining: 5, sold: 5 },
+      { chainId: 1, tierId: 1, remaining: 5, sold: 5 },
     ]);
-    expect(merged[1].chains).toEqual([{ chainId: 8453, tierId: 2, remaining: 5 }]);
+    expect(merged[1].chains).toEqual([{ chainId: 8453, tierId: 2, remaining: 5, sold: 5 }]);
   });
 });

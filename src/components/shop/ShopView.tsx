@@ -252,7 +252,7 @@ export function ShopView({
 
       {openItem && (
         <Dialog onClose={() => setOpen(undefined)} wide>
-          <div className="grid sm:grid-cols-2">
+          <div className="grid sm:h-[min(36rem,85vh)] sm:grid-cols-2">
             {openItem.image ? (
               // Same CSP-restricted sources as ItemCard (IPFS gateway + data: URIs).
               // eslint-disable-next-line @next/next/no-img-element
@@ -260,17 +260,23 @@ export function ShopView({
             ) : (
               <Art hue={(openItem.tierId * 47) % 360} className="h-full" />
             )}
-            <div className="flex flex-col bg-shelf-light p-6">
+            <div className="flex min-h-0 flex-col bg-shelf-light p-6">
+              <div className="min-h-0 flex-1 overflow-y-auto">
               <h2 className="display text-2xl font-extrabold">{openItem.name}</h2>
-              <p className="mt-1 font-mono text-xs text-mute">
-                {cats.length > 1 && `${openItem.categoryName} / `}
-                <span className="capitalize">{openItem.kind}</span>
-              </p>
-              <p className="mt-3 text-sm text-mute">
+              <p className="mt-2 text-sm text-mute">
                 {openItem.description ??
                   (openItem.kind === "digital"
                     ? "Delivered as a download in your receipt."
                     : "Ships after purchase.")}
+              </p>
+              <p className="mt-2 font-mono text-[11px] text-mute opacity-60">
+                {cats.length > 1 && (
+                  <>
+                    Category: {openItem.categoryName}
+                    <span className="mx-2">|</span>
+                  </>
+                )}
+                Type: {openItem.kind === "digital" ? "Digital" : "Physical"}
               </p>
               {openItem.discountPercent > 0 && (
                 <ul className="mt-4 flex flex-wrap gap-2 text-xs">
@@ -289,7 +295,7 @@ export function ShopView({
                     <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
                       <div className="text-xs text-mute">Stock</div>
                       <div className="mt-0.5">
-                        <Availability item={openItem} />{" "}
+                        <Stock item={openItem} />{" "}
                         <span className="inline-block text-xs text-mute transition-transform group-open:rotate-180">
                           ▾
                         </span>
@@ -297,10 +303,10 @@ export function ShopView({
                     </summary>
                     <div className="mt-2 space-y-1 text-xs">
                       {openItem.chains.map((c) => (
-                        <div key={c.chainId} className="flex justify-between gap-4">
-                          <span className="text-mute">{chainLabel(c.chainId)}</span>
+                        <div key={c.chainId} className="flex items-center gap-2">
+                          <ChainMark chainId={c.chainId} className="h-3.5 w-3.5" />
                           <span className="font-mono">
-                            {c.remaining === undefined ? "unlimited" : c.remaining === 0 ? "sold out" : `${c.remaining} left`}
+                            {c.remaining === undefined ? "unlimited" : `${c.remaining}/${c.sold + c.remaining}`}
                           </span>
                         </div>
                       ))}
@@ -310,18 +316,10 @@ export function ShopView({
                   <div>
                     <div className="text-xs text-mute">Stock</div>
                     <div className="mt-0.5">
-                      <Availability item={openItem} />
+                      <Stock item={openItem} />
                     </div>
                   </div>
                 )}
-                <div>
-                  <div className="text-xs text-mute">Sold</div>
-                  <div className="mt-0.5 font-mono">
-                    {openItem.remaining === undefined
-                      ? openItem.sold
-                      : `${openItem.sold}/${openItem.sold + openItem.remaining}`}
-                  </div>
-                </div>
               </div>
               {finePrint(openItem, shop, extras[openItem.tierId]).length > 0 && (
                 <details className="group mt-5 text-xs text-mute">
@@ -336,7 +334,8 @@ export function ShopView({
                   </ul>
                 </details>
               )}
-              <div className="mt-auto flex gap-2 pt-6">
+              </div>
+              <div className="flex gap-2 pt-6">
                 <button
                   type="button"
                   disabled={openItem.remaining === 0}
@@ -521,6 +520,17 @@ function finePrint(
   if (shop.ruleset.cashOut)
     lines.push("Owning this item lets you cash it out anytime for its share of the shop's surplus funds.");
   return lines;
+}
+
+/** Remaining/total, e.g. "559/560"; unlimited stays "unlimited". */
+function Stock({ item }: { item: Item }) {
+  if (item.remaining === undefined) return <>unlimited</>;
+  if (item.remaining === 0) return <>sold out</>;
+  return (
+    <>
+      {item.remaining}/{item.sold + item.remaining}
+    </>
+  );
 }
 
 function Badge({ children }: { children: React.ReactNode }) {

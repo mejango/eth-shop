@@ -31,7 +31,7 @@ export function mergeCatalogs(catalogs: { shop: Shop; items: Item[] }[]): Item[]
   for (const { shop, items } of catalogs) {
     for (const item of items) {
       const key = itemKey(item);
-      const entry = { chainId: shop.chainId as number, tierId: item.tierId, remaining: item.remaining };
+      const entry = { chainId: shop.chainId as number, tierId: item.tierId, remaining: item.remaining, sold: item.sold };
       const existing = byKey.get(key);
       // Two tiers on the SAME chain sharing content are distinct listings, not one
       // omnichain item — keep them separate (and unmergeable by later chains).

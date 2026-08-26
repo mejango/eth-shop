@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Art } from "./ItemCard";
 import { CHAINS, blankItem, blankShop, type ItemDraft, type ShopDraft } from "./sell/draft";
 import { ItemFields } from "./sell/ItemFields";
-import { Check, Field, More, Pills, PillsMulti, field } from "./sell/ui";
+import { Field, More, Pills, PillsMulti, field } from "./sell/ui";
 import { formatPrice } from "@/lib/items";
 import type { Currency } from "@/lib/types";
 import { parseUnits } from "viem";
@@ -63,7 +63,6 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
             />
           </Field>
 
-          <More label="More about your shop">
             <div className="grid gap-6 sm:grid-cols-[8rem_1fr]">
               <label className="flex aspect-square cursor-pointer items-center justify-center rounded-full bg-shelf text-center text-xs text-mute hover:bg-shelf-deep">
                 <input
@@ -125,7 +124,6 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
                 written in.
               </p>
             </fieldset>
-          </More>
 
           <More label="Shop settings">
             <p className="text-xs text-mute">
@@ -158,65 +156,6 @@ export function SellFlow({ initialHandle }: { initialHandle: string }) {
                     .toUpperCase()}
                 />
               </Field>
-            </div>
-            <div>
-              <Check
-                label="Items can cash out for surplus"
-                hint="Holders can burn an item for its share of what the shop holds."
-                checked={shop.cashOut}
-                onChange={(v) => setS({ cashOut: v })}
-              />
-              <Check
-                label="Full token credit on split sales"
-                hint="Buyers get project tokens for their whole payment, even the part an item routes to splits."
-                checked={shop.issueTokensForSplits}
-                onChange={(v) => setS({ issueTokensForSplits: v })}
-              />
-              <Check
-                label="Require exact payment"
-                hint="Reject payments that overshoot an item's price."
-                checked={shop.exactPayment}
-                onChange={(v) => setS({ exactPayment: v })}
-              />
-              <Check
-                label="Lock reserved items after opening"
-                hint="No new items with reserve inventory later."
-                checked={shop.lockReserved}
-                onChange={(v) => setS({ lockReserved: v })}
-              />
-              <Check
-                label="Lock voting items after opening"
-                checked={shop.lockVotes}
-                onChange={(v) => setS({ lockVotes: v })}
-              />
-              <Check
-                label="Lock free minting after opening"
-                checked={shop.lockOwnerMint}
-                onChange={(v) => setS({ lockOwnerMint: v })}
-              />
-            </div>
-            <div>
-              <span className="text-sm text-mute">What you can do after opening</span>
-              <Check
-                label="Add & remove items"
-                checked={shop.opAddRemove}
-                onChange={(v) => setS({ opAddRemove: v })}
-              />
-              <Check
-                label="Update item details"
-                checked={shop.opMetadata}
-                onChange={(v) => setS({ opMetadata: v })}
-              />
-              <Check
-                label="Mint items for free"
-                checked={shop.opMint}
-                onChange={(v) => setS({ opMint: v })}
-              />
-              <Check
-                label="Increase discounts"
-                checked={shop.opDiscounts}
-                onChange={(v) => setS({ opDiscounts: v })}
-              />
             </div>
           </More>
 

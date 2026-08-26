@@ -182,15 +182,6 @@ export function ItemFields({ item, categories, currency, onChange, onAddCategory
               placeholder="0"
             />
           </Field>
-          <Field label="Voting power" hint="Votes each item carries in your project.">
-            <input
-              inputMode="numeric"
-              value={item.votes}
-              onChange={(e) => set({ votes: e.target.value })}
-              className={`${field} font-mono`}
-              placeholder="0"
-            />
-          </Field>
         </div>
 
         <div>
@@ -202,7 +193,7 @@ export function ItemFields({ item, categories, currency, onChange, onAddCategory
               inputMode="numeric"
               value={item.reserveEvery}
               onChange={(e) => set({ reserveEvery: e.target.value })}
-              className={`${field} w-14 font-mono`}
+              className={`${field} !w-14 font-mono`}
               placeholder="10"
               aria-label="Reserve frequency"
             />

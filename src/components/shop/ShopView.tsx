@@ -10,7 +10,7 @@ import { formatPrice } from "@/lib/items";
 import { availableChainIds, tierIdOn } from "@/lib/omni";
 import type { Item, Shop } from "@/lib/types";
 import { TIER_UNLIMITED_SUPPLY } from "@bananapus/nana-sdk-core/v6";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 
 // ponytail: the whole storefront + owner console on local state so every 721 action is clickable.
@@ -273,51 +273,57 @@ export function ShopView({
                   <Badge>{openItem.discountPercent / 2}% off</Badge>
                 </ul>
               )}
-              <div className="tag mt-6 grid grid-cols-2 gap-y-2 pt-4 text-sm">
-                <span className="text-mute">Price</span>
-                <span className="text-right">
-                  <Price item={openItem} big />
-                </span>
+              <div className="tag mt-6 flex flex-wrap gap-x-10 gap-y-4 pt-4 text-sm">
+                <div>
+                  <div className="text-xs text-mute">Price</div>
+                  <div className="mt-0.5">
+                    <Price item={openItem} big />
+                  </div>
+                </div>
                 {shops.length > 1 && openItem.chains ? (
-                  <details className="group col-span-2">
-                    <summary className="flex cursor-pointer list-none justify-between [&::-webkit-details-marker]:hidden">
-                      <span className="text-mute">Availability</span>
-                      <span className="text-right">
+                  <details className="group">
+                    <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+                      <div className="text-xs text-mute">Availability</div>
+                      <div className="mt-0.5">
                         <Availability item={openItem} />{" "}
                         <span className="inline-block text-xs text-mute transition-transform group-open:rotate-180">
                           ▾
                         </span>
-                      </span>
+                      </div>
                     </summary>
-                    <div className="mt-2 grid grid-cols-2 gap-y-2">
+                    <div className="mt-2 space-y-1 text-xs">
                       {openItem.chains.map((c) => (
-                        <Fragment key={c.chainId}>
-                          <span className="pl-3 text-mute">{chainLabel(c.chainId)}</span>
-                          <span className="text-right font-mono">
+                        <div key={c.chainId} className="flex justify-between gap-4">
+                          <span className="text-mute">{chainLabel(c.chainId)}</span>
+                          <span className="font-mono">
                             {c.remaining === undefined ? "unlimited" : c.remaining === 0 ? "sold out" : `${c.remaining} left`}
                           </span>
-                        </Fragment>
+                        </div>
                       ))}
                     </div>
                   </details>
                 ) : (
-                  <>
-                    <span className="text-mute">Availability</span>
-                    <span className="text-right">
+                  <div>
+                    <div className="text-xs text-mute">Availability</div>
+                    <div className="mt-0.5">
                       <Availability item={openItem} />
-                    </span>
-                  </>
+                    </div>
+                  </div>
                 )}
                 {cats.length > 1 && (
-                  <>
-                    <span className="text-mute">Category</span>
-                    <span className="text-right">{openItem.categoryName}</span>
-                  </>
+                  <div>
+                    <div className="text-xs text-mute">Category</div>
+                    <div className="mt-0.5">{openItem.categoryName}</div>
+                  </div>
                 )}
-                <span className="text-mute">Type</span>
-                <span className="text-right capitalize">{openItem.kind}</span>
-                <span className="text-mute">Sold</span>
-                <span className="text-right font-mono">{openItem.sold}</span>
+                <div>
+                  <div className="text-xs text-mute">Type</div>
+                  <div className="mt-0.5 capitalize">{openItem.kind}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-mute">Sold</div>
+                  <div className="mt-0.5 font-mono">{openItem.sold}</div>
+                </div>
               </div>
               {finePrint(openItem, shop, extras[openItem.tierId]).length > 0 && (
                 <details className="group mt-5 text-xs text-mute">
@@ -332,11 +338,11 @@ export function ShopView({
                   </ul>
                 </details>
               )}
-              <div className="mt-auto space-y-2 pt-6">
+              <div className="mt-auto flex gap-2 pt-6">
                 <button
                   type="button"
                   disabled={openItem.remaining === 0}
-                  className={`${primary} w-full py-3 text-lg`}
+                  className={`${primary} flex-1 py-3 text-lg`}
                   onClick={() => {
                     add(openItem.tierId);
                     setOpen(undefined);
@@ -350,7 +356,7 @@ export function ShopView({
                 <button
                   type="button"
                   disabled={openItem.remaining === 0}
-                  className={`${ghost} w-full`}
+                  className={`${ghost} flex-1`}
                   onClick={() => {
                     add(openItem.tierId);
                     setOpen(undefined);
@@ -362,7 +368,7 @@ export function ShopView({
                   <button
                     type="button"
                     disabled={shop.ruleset.pauseMintPendingReserves}
-                    className={`${ghost} w-full`}
+                    className={`${ghost} flex-1`}
                     onClick={() => mintReserves(openItem)}
                   >
                     Mint {extras[openItem.tierId]?.reservePending} reserved to{" "}

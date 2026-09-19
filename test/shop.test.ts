@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { isRevnetFor, isRevnetOwner, mapAcceptedTokens, mergeTierMeta, resolvedMediaUrl } from "@/lib/shop";
+import { describe, expect, it, vi } from "vitest";
+import { fetchIpfsTierMeta, isRevnetFor, isRevnetOwner, mapAcceptedTokens, mergeTierMeta, resolvedMediaUrl } from "@/lib/shop";
 
 describe("mergeTierMeta", () => {
   it("keys rows by tierId, resolves a valid ipfs CID through the gateway, reads flags", () => {
@@ -153,5 +153,33 @@ describe("isRevnetFor", () => {
   it("falls back to Bendystraw's flag when the owner probe is null", () => {
     expect(isRevnetFor(null, REV_OWNER, true)).toBe(true);
     expect(isRevnetFor(null, REV_OWNER, false)).toBe(false);
+  });
+});
+
+describe("fetchIpfsTierMeta", () => {
+  it("decodes encodedIpfsUri, fetches the JSON from the gateway, resolves media", async () => {
+    // base:13 tier 2 — Bendystraw metadata:null, encodedIpfsUri set (the case the feed was dropping)
+    const encoded = "0x7f3e72a92de253df727f179cd26f0981b56e59c11ea08a25b7e668b8d25a6e82";
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ name: "OG chanceDB Supporter", image: "ipfs://bafybeian6sdh3idofou7v2f5ufw2et52lnlxj5ijtnmiw2fghgxnsszpha" })),
+    );
+    try {
+      const m = await fetchIpfsTierMeta(encoded);
+      expect(String(fetchSpy.mock.calls[0]?.[0])).toBe("https://juicebox.center/ipfs/QmWuMiWBSsEfK39mdgoYU4ufzaB7y6ahYxN8m1hCza4Jvu");
+      expect(m?.name).toBe("OG chanceDB Supporter");
+      expect(m?.image).toBe("https://juicebox.center/ipfs/bafybeian6sdh3idofou7v2f5ufw2et52lnlxj5ijtnmiw2fghgxnsszpha");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("is null for an unset uri and on a gateway failure", async () => {
+    expect(await fetchIpfsTierMeta("0x" + "0".repeat(64))).toBeNull();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 500 }));
+    try {
+      expect(await fetchIpfsTierMeta("0x7f3e72a92de253df727f179cd26f0981b56e59c11ea08a25b7e668b8d25a6e82")).toBeNull();
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });

@@ -4,7 +4,7 @@ import type { Address } from "viem";
 import { bendystraw } from "./bendystraw";
 import { isSupportedChain, publicClientFor, SUPPORTED_CHAIN_IDS } from "./chains";
 import { currencyOf, mapItem } from "./items";
-import { mergeTierMeta, resolvedMediaUrl, type BendyTier } from "./shop";
+import { fetchIpfsTierMeta, mergeTierMeta, resolvedMediaUrl, type BendyTier } from "./shop";
 import { slugFor } from "./slug";
 import type { Item } from "./types";
 
@@ -15,7 +15,7 @@ const FEED_QUERY = `query Feed($limit: Int!, $after: String) {
   nftTiers(where: { version: 6 }, orderBy: "createdAt", orderDirection: "desc", limit: $limit, after: $after) {
     items {
       chainId tierId price initialSupply remainingSupply category votingUnits reserveFrequency reserveBeneficiary
-      createdAt metadata resolvedUri allowOwnerMint transfersPausable cannotBeRemoved
+      createdAt metadata resolvedUri encodedIpfsUri allowOwnerMint transfersPausable cannotBeRemoved
       hook { address projectId project { metadata } }
     }
     pageInfo { endCursor hasNextPage }
@@ -31,6 +31,7 @@ type FeedRow = BendyTier & {
   votingUnits: string | null;
   reserveFrequency: number | null;
   createdAt: number;
+  encodedIpfsUri: string | null;
   hook: { address: string; projectId: number; project: { metadata: Record<string, unknown> | null } | null } | null;
 };
 type FeedQuery = { nftTiers: { items: FeedRow[]; pageInfo: { endCursor: string | null; hasNextPage: boolean } } };
@@ -129,8 +130,18 @@ export async function readFeed({ limit = 40, after = null }: { limit?: number; a
   const data = await bendystraw<FeedQuery>(SUPPORTED_CHAIN_IDS[0], FEED_QUERY, { limit, after });
   const rows = usableFeedRows(orderFeedRows(data.nftTiers.items));
   const pricing = await pricingByHook(distinctHooks(rows));
-  const items = rows.flatMap((r) => {
-    const meta = mergeTierMeta([r]).get(r.tierId);
+  // Bendystraw has metadata for resolver-backed tiers only (see fetchIpfsTierMeta);
+  // every other shop's tiers would otherwise fail isFeedWorthy and vanish from the feed.
+  const metas = await Promise.all(
+    rows.map(async (r) => {
+      const meta = mergeTierMeta([r]).get(r.tierId);
+      if (isFeedWorthy(meta)) return meta;
+      const ipfs = await fetchIpfsTierMeta(r.encodedIpfsUri);
+      return ipfs ? { ...meta, ...ipfs } : meta;
+    }),
+  );
+  const items = rows.flatMap((r, i) => {
+    const meta = metas[i];
     if (!isFeedWorthy(meta)) return [];
     const pm = (r.hook.project?.metadata ?? {}) as { name?: string; logoUri?: string };
     const slug = slugFor(r.chainId as (typeof SUPPORTED_CHAIN_IDS)[number], r.hook.projectId);

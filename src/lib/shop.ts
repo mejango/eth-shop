@@ -1,6 +1,6 @@
 import "server-only";
 import { decodeEncodedIpfsUri, getJBContractAddress, isContractRevertError, NATIVE_TOKEN, RevnetCoreContracts, USDC_ADDRESSES, type JBChainId } from "@bananapus/nana-sdk-core";
-import { decode721RulesetMetadata, getAccountingContexts, getCurrentRuleset, getProject721Shop, parseTierMetadataJson, tierDisplayMetadata, tierMediaImageUrl, type Project721Tier } from "@bananapus/nana-sdk-core/v6";
+import { decode721RulesetMetadata, getAccountingContexts, getCurrentRuleset, getProject721Shop, parseTierMetadataJson, tierDisplayMetadata, tierMediaImageUrl, type Project721Tier, type TierMetadata } from "@bananapus/nana-sdk-core/v6";
 import type { Address } from "viem";
 import { bendystraw } from "./bendystraw";
 import { isSupportedChain, publicClientFor } from "./chains";
@@ -115,6 +115,30 @@ export function mergeTierMeta(rows: BendyTier[]): Map<number, TierMeta> {
     });
   }
   return out;
+}
+
+// Bendystraw only fills nftTier.metadata from a tokenUriResolver's data URI (Banny);
+// a plain encodedIpfsUri tier is metadata:null there, so its JSON is fetched from the
+// gateway directly. Best-effort: null on any failure.
+export async function fetchIpfsTierMeta(encodedIpfsUri: string | null | undefined): Promise<TierMetadata | null> {
+  try {
+    if (!encodedIpfsUri || /^0x0+$/.test(encodedIpfsUri)) return null;
+    const cid = decodeEncodedIpfsUri(encodedIpfsUri as `0x${string}`);
+    if (!cid) return null;
+    const res = await fetch(GATEWAY + String(cid).replace("ipfs://", ""), {
+      signal: AbortSignal.timeout(8000),
+      // CID content is immutable; cache it across requests so the feed doesn't refetch every page load.
+      next: { revalidate: 86400 },
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as Record<string, unknown>;
+    if (!json || typeof json !== "object") return null;
+    const display = tierDisplayMetadata(json, GATEWAY);
+    return { ...display, image: resolvedMediaUrl(display.image), animationUrl: resolvedMediaUrl(display.animationUrl) };
+  } catch (error) {
+    console.warn("tier ipfs metadata fetch failed", encodedIpfsUri, error instanceof Error ? error.message : String(error));
+    return null;
+  }
 }
 
 const SHOP_QUERY = `query Shop($chainId: Float!, $projectId: Float!) {
@@ -252,33 +276,17 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
   if (stillMissing.length > 0) {
     await Promise.all(
       stillMissing.slice(0, RESOLVED_TIER_FETCH_CAP).map(async (t) => {
-        try {
-          if (!t.encodedIpfsUri || /^0x0+$/.test(t.encodedIpfsUri)) return;
-          const cid = decodeEncodedIpfsUri(t.encodedIpfsUri);
-          if (!cid) return;
-          const res = await fetch(GATEWAY + String(cid).replace("ipfs://", ""), {
-            signal: AbortSignal.timeout(8000),
-          });
-          if (!res.ok) return;
-          const json = (await res.json()) as Record<string, unknown>;
-          if (!json || typeof json !== "object") return;
-          const display = tierDisplayMetadata(json, GATEWAY);
-          const image = resolvedMediaUrl(display.image);
-          if (!image) return;
-          const existing = meta.get(t.id);
-          meta.set(t.id, {
-            ...(existing ?? {}),
-            ...{
-              image,
-              animationUrl: existing?.animationUrl ?? resolvedMediaUrl(display.animationUrl),
-              name: existing?.name || display.name,
-              description: existing?.description || display.description,
-              categoryName: existing?.categoryName || display.categoryName,
-            },
-          });
-        } catch (error) {
-          console.warn("tier ipfs metadata fetch failed", t.id, error instanceof Error ? error.message : String(error));
-        }
+        const display = await fetchIpfsTierMeta(t.encodedIpfsUri);
+        if (!display?.image) return;
+        const existing = meta.get(t.id);
+        meta.set(t.id, {
+          ...(existing ?? {}),
+          image: display.image,
+          animationUrl: existing?.animationUrl ?? display.animationUrl,
+          name: existing?.name || display.name,
+          description: existing?.description || display.description,
+          categoryName: existing?.categoryName || display.categoryName,
+        });
       }),
     );
   }

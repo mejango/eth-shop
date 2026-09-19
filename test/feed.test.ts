@@ -1,14 +1,45 @@
 import { describe, expect, it } from "vitest";
-import { distinctHooks, isFeedWorthy, isValidCursor, orderFeedRows, usableFeedRows } from "@/lib/feed";
+import { distinctHooks, isFeedWorthy, isValidCursor, lastSoldAt, orderFeedRows, pageOf, usableFeedRows } from "@/lib/feed";
 
 describe("orderFeedRows", () => {
-  it("newest first, drops empty tiers", () => {
+  const H = { address: "0xAbC" };
+  it("newest listing first when nothing sold, drops empty tiers", () => {
     const rows = orderFeedRows([
-      { createdAt: 10, initialSupply: 5, tierId: 1 },
-      { createdAt: 30, initialSupply: 0, tierId: 2 },
-      { createdAt: 20, initialSupply: 1, tierId: 3 },
+      { chainId: 8453, hook: H, createdAt: 10, initialSupply: 5, tierId: 1 },
+      { chainId: 8453, hook: H, createdAt: 30, initialSupply: 0, tierId: 2 },
+      { chainId: 8453, hook: H, createdAt: 20, initialSupply: 1, tierId: 3 },
     ]);
     expect(rows.map((r) => r.tierId)).toEqual([3, 1]);
+  });
+
+  it("most recently sold leads; unsold follow by listing date; hook address case-insensitive", () => {
+    const sold = lastSoldAt([
+      { chainId: 8453, hook: "0xabc", tierId: 1, timestamp: 100 },
+      { chainId: 8453, hook: "0xabc", tierId: 1, timestamp: 90 },
+      { chainId: 8453, hook: "0xabc", tierId: 4, timestamp: 95 },
+      { chainId: 1, hook: "0xabc", tierId: 3, timestamp: 200 },
+    ]);
+    const rows = orderFeedRows(
+      [
+        { chainId: 8453, hook: H, createdAt: 10, initialSupply: 5, tierId: 1 },
+        { chainId: 8453, hook: H, createdAt: 30, initialSupply: 1, tierId: 3 },
+        { chainId: 8453, hook: H, createdAt: 20, initialSupply: 1, tierId: 4 },
+        { chainId: 8453, hook: H, createdAt: 25, initialSupply: 1, tierId: 5 },
+      ],
+      sold,
+    );
+    // tier 1 (sold at 100) > tier 4 (sold at 95) > unsold: tier 3 (30) > tier 5 (25). The
+    // chain-1 sale of tier 3 doesn't count for the base tier 3.
+    expect(rows.map((r) => r.tierId)).toEqual([1, 4, 3, 5]);
+  });
+});
+
+describe("pageOf", () => {
+  it("slices by offset and hands back the next offset until exhausted", () => {
+    const all = [1, 2, 3, 4, 5];
+    expect(pageOf(all, null, 2)).toEqual({ items: [1, 2], next: "2" });
+    expect(pageOf(all, "2", 2)).toEqual({ items: [3, 4], next: "4" });
+    expect(pageOf(all, "4", 2)).toEqual({ items: [5], next: null });
   });
 });
 
@@ -66,27 +97,16 @@ describe("isFeedWorthy", () => {
 });
 
 describe("isValidCursor", () => {
-  it("accepts null (first page)", () => {
+  it("accepts null (first page) and a positive offset", () => {
     expect(isValidCursor(null)).toBe(true);
+    expect(isValidCursor("40")).toBe(true);
   });
 
-  it("accepts a normal cursor string", () => {
-    expect(isValidCursor("eyJqc29uIjp7ImNyZWF0ZWRBdCI6MTB9fQ==")).toBe(true);
-  });
-
-  it("rejects an empty string", () => {
+  it("rejects empty, zero-led, non-numeric and oversized values", () => {
     expect(isValidCursor("")).toBe(false);
-  });
-
-  it("rejects a cursor over 512 chars", () => {
-    expect(isValidCursor("a".repeat(513))).toBe(false);
-  });
-
-  it("accepts a cursor at exactly 512 chars", () => {
-    expect(isValidCursor("a".repeat(512))).toBe(true);
-  });
-
-  it("rejects a cursor containing a control character", () => {
+    expect(isValidCursor("040")).toBe(false);
+    expect(isValidCursor("eyJqc29u")).toBe(false);
+    expect(isValidCursor("1234567")).toBe(false);
     expect(isValidCursor("\u0000bad")).toBe(false);
   });
 });

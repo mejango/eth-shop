@@ -11,14 +11,27 @@ import type { Item } from "./types";
 export type FeedItem = Item & { shopName: string; shopLogo?: string };
 export type Feed = { items: FeedItem[]; next: string | null };
 
-const FEED_QUERY = `query Feed($limit: Int!, $after: String) {
-  nftTiers(where: { version: 6 }, orderBy: "createdAt", orderDirection: "desc", limit: $limit, after: $after) {
+// Ponder caps limit at 1000. V6 has ~300 tiers today; the whole catalog is read in one
+// call, ordered by sales in memory, and paged by offset from a 60s in-process cache.
+// ponytail: revisit (server-side paging by tier activity) if V6 tiers approach 1000.
+const CATALOG_LIMIT = 1000;
+const PAGE_SIZE = 40;
+
+const FEED_QUERY = `query Feed($limit: Int!) {
+  nftTiers(where: { version: 6 }, orderBy: "createdAt", orderDirection: "desc", limit: $limit) {
     items {
       chainId tierId price initialSupply remainingSupply category votingUnits reserveFrequency reserveBeneficiary
       createdAt metadata resolvedUri encodedIpfsUri allowOwnerMint transfersPausable cannotBeRemoved
       hook { address projectId project { metadata } }
     }
-    pageInfo { endCursor hasNextPage }
+  }
+}`;
+
+// The most recent 1000 mints are enough to date every tier that sold recently; a tier
+// whose last sale is older than that sorts with the unsold ones, by listing date.
+const SALES_QUERY = `query Sales($limit: Int!) {
+  mintNftEvents(where: { version: 6 }, orderBy: "timestamp", orderDirection: "desc", limit: $limit) {
+    items { chainId hook tierId timestamp }
   }
 }`;
 
@@ -34,10 +47,31 @@ type FeedRow = BendyTier & {
   encodedIpfsUri: string | null;
   hook: { address: string; projectId: number; project: { metadata: Record<string, unknown> | null } | null } | null;
 };
-type FeedQuery = { nftTiers: { items: FeedRow[]; pageInfo: { endCursor: string | null; hasNextPage: boolean } } };
+type FeedQuery = { nftTiers: { items: FeedRow[] } };
+type SalesQuery = { mintNftEvents: { items: { chainId: number; hook: string; tierId: number; timestamp: number }[] } };
 
-export function orderFeedRows<T extends { createdAt: number; initialSupply: number }>(rows: T[]): T[] {
-  return rows.filter((r) => r.initialSupply > 0).sort((a, b) => b.createdAt - a.createdAt);
+export function tierKey(r: { chainId: number; tierId: number }, hook: string): string {
+  return `${r.chainId}:${hook.toLowerCase()}:${r.tierId}`;
+}
+
+/** Most recent sale timestamp per tier key, from mints ordered newest first. */
+export function lastSoldAt(mints: SalesQuery["mintNftEvents"]["items"]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const m of mints) {
+    const key = tierKey(m, m.hook);
+    if (!out.has(key)) out.set(key, m.timestamp);
+  }
+  return out;
+}
+
+// "Selling right now": the tier that most recently received an order leads; tiers with
+// no recent sale follow, newest listing first.
+export function orderFeedRows<T extends { chainId: number; tierId: number; createdAt: number; initialSupply: number; hook: { address: string } | null }>(
+  rows: T[],
+  sold: Map<string, number> = new Map(),
+): T[] {
+  const soldAt = (r: T) => (r.hook ? (sold.get(tierKey(r, r.hook.address)) ?? 0) : 0);
+  return rows.filter((r) => r.initialSupply > 0).sort((a, b) => soldAt(b) - soldAt(a) || b.createdAt - a.createdAt);
 }
 
 // The home feed is content-first: a tier whose metadata pinned neither a name nor an
@@ -46,16 +80,10 @@ export function isFeedWorthy(meta: { name?: string; image?: string } | undefined
   return !!meta?.name || !!meta?.image;
 }
 
-const CURSOR_MAX_LEN = 512;
-const CURSOR_CONTROL_CHARS = /[\x00-\x1f\x7f]/;
-
-// A cursor comes straight off the query string into a Bendystraw request; validate it
-// before it ever reaches `readFeed` so a malformed value 400s instead of surfacing as a
-// confusing upstream failure.
+// The cursor is an offset into the in-memory ordering; validate it before it reaches
+// `readFeed` so a malformed value 400s instead of surfacing as an upstream failure.
 export function isValidCursor(after: string | null): boolean {
-  if (after === null) return true;
-  if (after.length === 0 || after.length > CURSOR_MAX_LEN) return false;
-  return !CURSOR_CONTROL_CHARS.test(after);
+  return after === null || /^[1-9]\d{0,5}$/.test(after);
 }
 
 // A half-indexed row (chain not yet supported by this app, or hook not yet
@@ -126,9 +154,12 @@ async function pricingByHook(
   return new Map(entries);
 }
 
-export async function readFeed({ limit = 40, after = null }: { limit?: number; after?: string | null } = {}): Promise<Feed> {
-  const data = await bendystraw<FeedQuery>(SUPPORTED_CHAIN_IDS[0], FEED_QUERY, { limit, after });
-  const rows = usableFeedRows(orderFeedRows(data.nftTiers.items));
+async function buildFeed(): Promise<FeedItem[]> {
+  const [data, sales] = await Promise.all([
+    bendystraw<FeedQuery>(SUPPORTED_CHAIN_IDS[0], FEED_QUERY, { limit: CATALOG_LIMIT }),
+    bendystraw<SalesQuery>(SUPPORTED_CHAIN_IDS[0], SALES_QUERY, { limit: CATALOG_LIMIT }),
+  ]);
+  const rows = orderFeedRows(usableFeedRows(data.nftTiers.items), lastSoldAt(sales.mintNftEvents.items));
   const pricing = await pricingByHook(distinctHooks(rows));
   // Bendystraw has metadata for resolver-backed tiers only (see fetchIpfsTierMeta);
   // every other shop's tiers would otherwise fail isFeedWorthy and vanish from the feed.
@@ -140,7 +171,7 @@ export async function readFeed({ limit = 40, after = null }: { limit?: number; a
       return ipfs ? { ...meta, ...ipfs } : meta;
     }),
   );
-  const items = rows.flatMap((r, i) => {
+  return rows.flatMap((r, i) => {
     const meta = metas[i];
     if (!isFeedWorthy(meta)) return [];
     const pm = (r.hook.project?.metadata ?? {}) as { name?: string; logoUri?: string };
@@ -160,5 +191,27 @@ export async function readFeed({ limit = 40, after = null }: { limit?: number; a
     const p = pricing.get(`${r.chainId}:${r.hook.address.toLowerCase()}`) ?? DEFAULT_PRICING;
     return [{ ...mapItem({ shopSlug: slug, tier, meta, currency: currencyOf(p), decimals: p.decimals }), shopName: pm.name ?? slug, shopLogo: resolvedMediaUrl(pm.logoUri) }];
   });
-  return { items, next: data.nftTiers.pageInfo.hasNextPage ? data.nftTiers.pageInfo.endCursor : null };
+}
+
+// Same shape as readOmnichainShop's cache: one in-flight build shared, rejections evicted.
+const FEED_TTL_MS = 60_000;
+let cached: { at: number; feed: Promise<FeedItem[]> } | null = null;
+function cachedFeed(): Promise<FeedItem[]> {
+  if (cached && Date.now() - cached.at < FEED_TTL_MS) return cached.feed;
+  const feed = buildFeed();
+  cached = { at: Date.now(), feed };
+  feed.catch(() => {
+    if (cached?.feed === feed) cached = null;
+  });
+  return feed;
+}
+
+export function pageOf<T>(all: T[], after: string | null, size = PAGE_SIZE): { items: T[]; next: string | null } {
+  const start = after ? Number(after) : 0;
+  const end = start + size;
+  return { items: all.slice(start, end), next: end < all.length ? String(end) : null };
+}
+
+export async function readFeed({ after = null }: { after?: string | null } = {}): Promise<Feed> {
+  return pageOf(await cachedFeed(), after);
 }

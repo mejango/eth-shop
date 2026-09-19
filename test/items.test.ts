@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatPrice, mapItem } from "@/lib/items";
+import { availabilityText, formatPrice, mapItem } from "@/lib/items";
 
 const tier = { id: 7, price: 4_000_000_000_000_000n, remainingSupply: 40, initialSupply: 50, votingUnits: 0n, reserveFrequency: 0, category: 2, discountPercent: 0, encodedIpfsUri: "0x" as const, resolvedUri: "" };
 
@@ -51,5 +51,13 @@ describe("formatPrice", () => {
   });
   it("formats large amounts with grouping", () => {
     expect(formatPrice(1_234_567_000_000_000_000_000n, 18, "ETH")).toBe("1,234.567 ETH");
+  });
+});
+
+describe("availabilityText", () => {
+  it("says what sold and what's left", () => {
+    expect(availabilityText({ sold: 2, remaining: 98 })).toBe("2 sold, 98 left");
+    expect(availabilityText({ sold: 7, remaining: undefined })).toBe("7 sold, unlimited");
+    expect(availabilityText({ sold: 100, remaining: 0 })).toBe("sold out, 100 sold");
   });
 });

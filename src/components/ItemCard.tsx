@@ -1,3 +1,4 @@
+import { availabilityText } from "@/lib/items";
 import type { Item } from "@/lib/types";
 
 export function Art({ hue, className = "" }: { hue: number; className?: string }) {
@@ -24,13 +25,7 @@ export function Price({ item, big }: { item: Item; big?: boolean }) {
 }
 
 export function Availability({ item }: { item: Item }) {
-  if (item.remaining === 0) return <>sold out</>;
-  if (item.remaining === undefined) return <>unlimited</>;
-  return (
-    <>
-      {item.remaining}/{item.sold + item.remaining}
-    </>
-  );
+  return <>{availabilityText(item)}</>;
 }
 
 export function ItemCard({

@@ -14,6 +14,13 @@ export type TierMeta = TierMetadata & {
   reserveBeneficiary?: Address;
 };
 
+// One stock line for cards, the drawer and per-chain rows: what moved and what's left.
+export function availabilityText({ sold, remaining }: { sold: number; remaining: number | undefined }): string {
+  if (remaining === 0) return `sold out, ${sold} sold`;
+  if (remaining === undefined) return `${sold} sold, unlimited`;
+  return `${sold} sold, ${remaining} left`;
+}
+
 export function formatPrice(amount: bigint, decimals: number, currency: Currency): string {
   if (amount === 0n) return "Free";
   const n = Number(formatUnits(amount, decimals));

@@ -7,7 +7,7 @@ import { Check, Field, More, field } from "@/components/sell/ui";
 import { BuyFlow } from "@/components/shop/BuyFlow";
 import { ChainMark } from "@/components/ChainMark";
 import { chainLabel } from "@/lib/chainList";
-import { formatPrice } from "@/lib/items";
+import { availabilityText, formatPrice } from "@/lib/items";
 import { availableChainIds, tierIdOn } from "@/lib/omni";
 import type { Item, Shop } from "@/lib/types";
 import { TIER_UNLIMITED_SUPPLY } from "@bananapus/nana-sdk-core/v6";
@@ -298,7 +298,7 @@ export function ShopView({
                         <div key={c.chainId} className="flex items-center gap-1.5">
                           <ChainMark chainId={c.chainId} className="h-3 w-3" />
                           <span>
-                            {c.remaining === undefined ? "unlimited" : `${c.remaining}/${c.sold + c.remaining}`}
+                            {availabilityText(c)}
                           </span>
                         </div>
                       ))}
@@ -795,7 +795,7 @@ function Manage({
                   {it.name} <span className="text-mute">in {it.categoryName}</span>
                 </p>
                 <p className="text-xs text-mute">
-                  <Price item={it} />, <Availability item={it} />, sold {it.sold}
+                  <Price item={it} />, <Availability item={it} />
                 </p>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">

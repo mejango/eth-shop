@@ -5,7 +5,7 @@ import { bendystraw } from "./bendystraw";
 import { isSupportedChain, publicClientFor, SUPPORTED_CHAIN_IDS } from "./chains";
 import { currencyOf, mapItem } from "./items";
 import { fetchIpfsTierMeta, mergeTierMeta, resolvedMediaUrl, type BendyTier } from "./shop";
-import { slugFor } from "./slug";
+import { publicSlugFor } from "./handles";
 import type { Item } from "./types";
 
 export type FeedItem = Item & { shopName: string; shopLogo?: string };
@@ -154,6 +154,18 @@ async function pricingByHook(
   return new Map(entries);
 }
 
+/** Display/link slug per distinct (chainId, projectId): the verified handle when there is one. */
+export async function slugsByShop(shops: { chainId: number; projectId: number }[]): Promise<Map<string, string>> {
+  const keys = [...new Set(shops.map((s) => `${s.chainId}:${s.projectId}`))];
+  const entries = await Promise.all(
+    keys.map(async (key) => {
+      const [chainId, projectId] = key.split(":");
+      return [key, await publicSlugFor(Number(chainId) as JBChainId, BigInt(projectId))] as const;
+    }),
+  );
+  return new Map(entries);
+}
+
 async function buildFeed(): Promise<FeedItem[]> {
   const [data, sales] = await Promise.all([
     bendystraw<FeedQuery>(SUPPORTED_CHAIN_IDS[0], FEED_QUERY, { limit: CATALOG_LIMIT }),
@@ -161,6 +173,7 @@ async function buildFeed(): Promise<FeedItem[]> {
   ]);
   const rows = orderFeedRows(usableFeedRows(data.nftTiers.items), lastSoldAt(sales.mintNftEvents.items));
   const pricing = await pricingByHook(distinctHooks(rows));
+  const slugs = await slugsByShop(rows.map((r) => ({ chainId: r.chainId, projectId: r.hook.projectId })));
   // Bendystraw has metadata for resolver-backed tiers only (see fetchIpfsTierMeta);
   // every other shop's tiers would otherwise fail isFeedWorthy and vanish from the feed.
   const metas = await Promise.all(
@@ -175,7 +188,7 @@ async function buildFeed(): Promise<FeedItem[]> {
     const meta = metas[i];
     if (!isFeedWorthy(meta)) return [];
     const pm = (r.hook.project?.metadata ?? {}) as { name?: string; logoUri?: string };
-    const slug = slugFor(r.chainId as (typeof SUPPORTED_CHAIN_IDS)[number], r.hook.projectId);
+    const slug = slugs.get(`${r.chainId}:${r.hook.projectId}`)!;
     const tier = {
       id: r.tierId,
       price: BigInt(r.price),

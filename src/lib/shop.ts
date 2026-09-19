@@ -4,9 +4,8 @@ import { decode721RulesetMetadata, getAccountingContexts, getCurrentRuleset, get
 import type { Address } from "viem";
 import { bendystraw } from "./bendystraw";
 import { isSupportedChain, publicClientFor } from "./chains";
-import { handleFor, projectOwner } from "./handles";
+import { handleFor, projectOwner, publicSlugFor } from "./handles";
 import { currencyOf, mapItem, type TierMeta } from "./items";
-import { slugFor } from "./slug";
 import { mergeCatalogs } from "./omni";
 import { readAllActiveTiers, readResolvedTierUris, RESOLVED_TIER_FETCH_CAP } from "./tiers";
 import type { Item, Shop } from "./types";
@@ -317,7 +316,7 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
   }));
   const pm = (bendy?.metadata ?? {}) as { name?: string; description?: string; logoUri?: string; projectTagline?: string; ethShop?: { tagline?: string } };
   const currency = currencyOf(sdk.pricing);
-  const slug = slugFor(chainId, projectId);
+  const slug = await publicSlugFor(chainId, projectId);
 
   const shop: Shop = {
     chainId,

@@ -3,6 +3,7 @@ import { getJBContractAddress, isContractRevertError, JBCoreContracts, type JBCh
 import type { Address } from "viem";
 import { normalize } from "viem/ens";
 import { isSupportedChain, publicClientFor } from "./chains";
+import { slugFor } from "./slug";
 
 export const JB_PROJECT_HANDLES = "0x726f4a3dfd2fb8297f8ab98d215b42a92d8eefe8" as Address; // mainnet only
 const HANDLE_CHAIN: JBChainId = 1;
@@ -99,4 +100,36 @@ export async function resolveHandle(handle: string): Promise<{ chainId: JBChainI
   const published = await handleFor(record.chainId, record.projectId);
   if (published !== handleForEnsName(name)) return null;
   return { chainId: record.chainId, projectId: record.projectId };
+}
+
+/**
+ * The path a shop is linked and displayed by: its ENS handle when the owner published
+ * one AND the ENS text record points back at this project (the same round trip
+ * `resolveHandle` demands, so the link is guaranteed to resolve), else `chain:id`.
+ * Any RPC failure falls back to `chain:id` — a label must never take the page down.
+ */
+export async function publicSlugFor(chainId: JBChainId, projectId: bigint): Promise<string> {
+  const slug = slugFor(chainId, projectId);
+  const key = `${chainId}:${projectId}`;
+  const hit = slugMemo.get(key);
+  if (hit && Date.now() - hit.at < SLUG_TTL_MS) return hit.slug;
+  try {
+    const handle = await handleFor(chainId, projectId);
+    if (!handle) return remember(key, slug);
+    const text = await publicClientFor(HANDLE_CHAIN).getEnsText({ name: normalize(ensNameForHandle(handle)), key: TEXT_KEY });
+    const record = parseHandleRecord(text);
+    const ok = record !== null && record.chainId === chainId && record.projectId === projectId;
+    return remember(key, ok ? handle : slug);
+  } catch (error) {
+    console.warn("publicSlugFor failed", key, error instanceof Error ? error.message : String(error));
+    return slug;
+  }
+}
+
+// ponytail: in-process memo; ~5 RPC calls per shop otherwise on every feed rebuild.
+const SLUG_TTL_MS = 5 * 60_000;
+const slugMemo = new Map<string, { at: number; slug: string }>();
+function remember(key: string, slug: string): string {
+  slugMemo.set(key, { at: Date.now(), slug });
+  return slug;
 }

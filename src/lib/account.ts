@@ -3,7 +3,7 @@ import { getAddress, type Address } from "viem";
 import { bendystraw } from "./bendystraw";
 import { isSupportedChain, SUPPORTED_CHAIN_IDS } from "./chains";
 import { mergeTierMeta, type BendyTier } from "./shop";
-import { slugFor } from "./slug";
+import { slugsByShop } from "./feed";
 
 // nfts() has no cursor pagination wired up here yet — a holder with more than this many
 // items across every V6 shop has their tail dropped. ponytail: paginate (after/endCursor,
@@ -70,10 +70,11 @@ export async function readOwnedItems(address: Address): Promise<OwnedItem[]> {
   const metaByHook = new Map<string, ReturnType<typeof mergeTierMeta>>();
   for (const [hook, tiers] of tiersByHook) metaByHook.set(hook, mergeTierMeta([...tiers.values()]));
 
+  const slugs = await slugsByShop(rows.map((r) => ({ chainId: r.chainId, projectId: r.hook.projectId })));
   return rows.map((r) => {
     const meta = metaByHook.get(r.hook.address)?.get(r.tierId);
     const pm = (r.hook.project?.metadata ?? {}) as { name?: string };
-    const shop = slugFor(r.chainId as (typeof SUPPORTED_CHAIN_IDS)[number], r.hook.projectId);
+    const shop = slugs.get(`${r.chainId}:${r.hook.projectId}`)!;
     return {
       tokenId: r.tokenId,
       tierId: r.tierId,

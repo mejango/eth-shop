@@ -174,8 +174,8 @@ async function buildFeed(): Promise<FeedItem[]> {
   const rows = orderFeedRows(usableFeedRows(data.nftTiers.items), lastSoldAt(sales.mintNftEvents.items));
   const pricing = await pricingByHook(distinctHooks(rows));
   const slugs = await slugsByShop(rows.map((r) => ({ chainId: r.chainId, projectId: r.hook.projectId })));
-  // Bendystraw has metadata for resolver-backed tiers only (see fetchIpfsTierMeta);
-  // every other shop's tiers would otherwise fail isFeedWorthy and vanish from the feed.
+  // Bendystraw parses tier metadata from the resolver or the tier's encodedIpfsUri, but its
+  // gateway fetch is best-effort; a tier it left null would otherwise fail isFeedWorthy and vanish.
   const metas = await Promise.all(
     rows.map(async (r) => {
       const meta = mergeTierMeta([r]).get(r.tierId);

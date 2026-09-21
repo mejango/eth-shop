@@ -116,8 +116,8 @@ export function mergeTierMeta(rows: BendyTier[]): Map<number, TierMeta> {
   return out;
 }
 
-// Bendystraw only fills nftTier.metadata from a tokenUriResolver's data URI (Banny);
-// a plain encodedIpfsUri tier is metadata:null there, so its JSON is fetched from the
+// Bendystraw fills nftTier.metadata from the resolver or the tier's encodedIpfsUri, but
+// its gateway fetch is best-effort, so a tier it left null has its JSON fetched from the
 // gateway directly. Best-effort: null on any failure.
 export async function fetchIpfsTierMeta(encodedIpfsUri: string | null | undefined): Promise<TierMetadata | null> {
   try {

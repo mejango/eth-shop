@@ -1,7 +1,8 @@
 import type { JBChainId } from "@bananapus/nana-sdk-core";
 import type { Address } from "viem";
 
-export type Currency = "ETH" | "USD";
+/** Display unit for prices: "ETH", "USD", or the pricing token's symbol. */
+export type Currency = string;
 
 export type Shop = {
   chainId: JBChainId;
@@ -16,7 +17,7 @@ export type Shop = {
   store: Address;
   idTarget: Address; // METADATA_ID_TARGET, for pay/cash-out metadata
   symbol: string;
-  currency: Currency; // display-only ("ETH" | "USD"); use pricingCurrency for math
+  currency: Currency; // display-only symbol; use pricingCurrency for math
   /** Raw JBPrices currency id the shop is priced in — use for any pricing math (JBPrices pair lookups). */
   pricingCurrency: number;
   decimals: number;

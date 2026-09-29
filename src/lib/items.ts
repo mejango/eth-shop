@@ -1,10 +1,6 @@
-import { BASE_CURRENCY_USD, effectiveTierPrice, TIER_UNLIMITED_SUPPLY, type Project721Tier, type TierMetadata } from "@bananapus/nana-sdk-core/v6";
+import { BASE_CURRENCY_ETH, BASE_CURRENCY_USD, effectiveTierPrice, TIER_UNLIMITED_SUPPLY, type Project721Tier, type TierMetadata } from "@bananapus/nana-sdk-core/v6";
 import { formatUnits, type Address } from "viem";
 import type { Currency, Item } from "./types";
-
-// From nana-core-v6 src/libraries/JBCurrencyIds.sol (ETH = 1, USD = 2)
-// SDK exports BASE_CURRENCY_USD as 2 for v6
-const USD_CURRENCY_ID = BASE_CURRENCY_USD;
 
 export type TierMeta = TierMetadata & {
   allowOwnerMint?: boolean;
@@ -33,8 +29,15 @@ export function formatPrice(amount: bigint, decimals: number, currency: Currency
   return `${text} ${currency}`;
 }
 
-export function currencyOf(pricing: { currency: number }): Currency {
-  return pricing.currency === USD_CURRENCY_ID ? "USD" : "ETH";
+/**
+ * Display unit for a 721 hook's pricing currency: the ETH and USD base currencies by
+ * name, and a token-keyed currency (uint32(uint160(token))) by the symbol of the
+ * accepted token whose accounting context carries it.
+ */
+export function pricingSymbol(currency: number, tokens: readonly { currency: number; symbol: string }[] = []): Currency {
+  if (currency === BASE_CURRENCY_ETH) return "ETH";
+  if (currency === BASE_CURRENCY_USD) return "USD";
+  return tokens.find((t) => t.currency === currency)?.symbol ?? "TOKEN";
 }
 
 export function mapItem({ shopSlug, tier, meta, currency, decimals }: {

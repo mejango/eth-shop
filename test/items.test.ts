@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { availabilityText, formatPrice, mapItem } from "@/lib/items";
+import { availabilityText, formatPrice, mapItem, pricingSymbol } from "@/lib/items";
 
 const tier = { id: 7, price: 4_000_000_000_000_000n, remainingSupply: 40, initialSupply: 50, votingUnits: 0n, reserveFrequency: 0, category: 2, discountPercent: 0, encodedIpfsUri: "0x" as const, resolvedUri: "" };
 
@@ -51,6 +51,24 @@ describe("formatPrice", () => {
   });
   it("formats large amounts with grouping", () => {
     expect(formatPrice(1_234_567_000_000_000_000_000n, 18, "ETH")).toBe("1,234.567 ETH");
+  });
+});
+
+describe("pricingSymbol", () => {
+  // uint32(uint160(Base USDC 0x833589fC…bdA02913))
+  const usdc = { currency: 0xbda02913, symbol: "USDC" };
+  it("names the base currencies", () => {
+    expect(pricingSymbol(1)).toBe("ETH");
+    expect(pricingSymbol(2)).toBe("USD");
+  });
+  it("labels a token-keyed currency with the matching accepted token, 6 decimals", () => {
+    const currency = pricingSymbol(usdc.currency, [{ currency: 61166, symbol: "ETH" }, usdc]);
+    expect(currency).toBe("USDC");
+    const item = mapItem({ shopSlug: "base:13", tier: { ...tier, price: 10_000_000n }, currency, decimals: 6 });
+    expect(item.priceText).toBe("10 USDC");
+  });
+  it("never falls back to ETH for an unmatched token currency", () => {
+    expect(pricingSymbol(2179636131, [{ currency: 61166, symbol: "ETH" }])).toBe("TOKEN");
   });
 });
 

@@ -4,6 +4,7 @@ import { bendystraw } from "./bendystraw";
 import { isSupportedChain, SUPPORTED_CHAIN_IDS } from "./chains";
 import { mergeTierMeta, type BendyTier } from "./shop";
 import { slugsByShop } from "./feed";
+import { metadataByProject } from "./projectMeta";
 
 // nfts() has no cursor pagination wired up here yet — a holder with more than this many
 // items across every V6 shop has their tail dropped. ponytail: paginate (after/endCursor,
@@ -15,7 +16,7 @@ const OWNED_QUERY = `query Owned($owner: String!, $limit: Int!) {
     items {
       chainId tokenId tierId customized tokenUri metadata
       tier { metadata resolvedUri }
-      hook { address projectId project { metadata } }
+      hook { address projectId project { metadata metadataUri } }
     }
   }
 }`;
@@ -28,7 +29,7 @@ type Row = {
   tokenUri: string | null;
   metadata: unknown;
   tier: { metadata: unknown; resolvedUri: string | null } | null;
-  hook: { address: string; projectId: number; project: { metadata: Record<string, unknown> | null } | null } | null;
+  hook: { address: string; projectId: number; project: { metadata: Record<string, unknown> | null; metadataUri: string | null } | null } | null;
 };
 
 export type OwnedItem = { tokenId: string; tierId: number; shop: string; shopName: string; name: string; image?: string };
@@ -70,16 +71,17 @@ export async function readOwnedItems(address: Address): Promise<OwnedItem[]> {
   const metaByHook = new Map<string, ReturnType<typeof mergeTierMeta>>();
   for (const [hook, tiers] of tiersByHook) metaByHook.set(hook, mergeTierMeta([...tiers.values()]));
 
-  const slugs = await slugsByShop(rows.map((r) => ({ chainId: r.chainId, projectId: r.hook.projectId })));
+  const shops = rows.map((r) => ({ chainId: r.chainId, projectId: r.hook.projectId, project: r.hook.project }));
+  const [slugs, projectMeta] = await Promise.all([slugsByShop(shops), metadataByProject(shops)]);
   return rows.map((r) => {
     const meta = metaByHook.get(r.hook.address)?.get(r.tierId);
-    const pm = (r.hook.project?.metadata ?? {}) as { name?: string };
+    const pm = projectMeta.get(`${r.chainId}:${r.hook.projectId}`) ?? {};
     const shop = slugs.get(`${r.chainId}:${r.hook.projectId}`)!;
     return {
       tokenId: r.tokenId,
       tierId: r.tierId,
       shop,
-      shopName: pm.name ?? shop,
+      shopName: pm.name || shop,
       name: meta?.name ?? `Item ${r.tierId}`,
       image: meta?.image,
     };

@@ -3,8 +3,10 @@ import type { JBChainId } from "@bananapus/nana-sdk-core";
 import type { Address } from "viem";
 import { bendystraw } from "./bendystraw";
 import { isSupportedChain, publicClientFor, SUPPORTED_CHAIN_IDS } from "./chains";
-import { currencyOf, mapItem } from "./items";
-import { fetchIpfsTierMeta, mergeTierMeta, resolvedMediaUrl, type BendyTier } from "./shop";
+import { getAccountingContexts } from "@bananapus/nana-sdk-core/v6";
+import { mapItem, pricingSymbol } from "./items";
+import { metadataByProject } from "./projectMeta";
+import { fetchIpfsTierMeta, mergeTierMeta, readAcceptedTokens, resolvedMediaUrl, type BendyTier } from "./shop";
 import { publicSlugFor } from "./handles";
 import type { Item } from "./types";
 
@@ -22,7 +24,7 @@ const FEED_QUERY = `query Feed($limit: Int!) {
     items {
       chainId tierId price initialSupply remainingSupply category votingUnits reserveFrequency reserveBeneficiary
       createdAt metadata resolvedUri encodedIpfsUri allowOwnerMint transfersPausable cannotBeRemoved
-      hook { address projectId project { metadata } }
+      hook { address projectId project { metadata metadataUri } }
     }
   }
 }`;
@@ -45,7 +47,7 @@ type FeedRow = BendyTier & {
   reserveFrequency: number | null;
   createdAt: number;
   encodedIpfsUri: string | null;
-  hook: { address: string; projectId: number; project: { metadata: Record<string, unknown> | null } | null } | null;
+  hook: { address: string; projectId: number; project: { metadata: Record<string, unknown> | null; metadataUri: string | null } | null } | null;
 };
 type FeedQuery = { nftTiers: { items: FeedRow[] } };
 type SalesQuery = { mintNftEvents: { items: { chainId: number; hook: string; tierId: number; timestamp: number }[] } };
@@ -127,24 +129,33 @@ const pricingContextAbi = [
   },
 ] as const;
 
-const DEFAULT_PRICING = { currency: 1, decimals: 18 };
+type Pricing = { currency: number; decimals: number; symbol: string };
+const DEFAULT_PRICING: Pricing = { currency: 1, decimals: 18, symbol: "ETH" };
 
 // nftTier carries no pricing currency/decimals, so the feed reads each distinct hook's
-// pricingContext() directly rather than assuming 18-dec ETH. A failed read for one hook
+// pricingContext() directly rather than assuming 18-dec ETH. A token-keyed currency takes
+// its symbol from the project's matching accounting context. A failed read for one hook
 // falls back to that default rather than failing the whole feed.
 async function pricingByHook(
-  hooks: { chainId: number; address: string }[],
-): Promise<Map<string, { currency: number; decimals: number }>> {
+  hooks: { chainId: number; address: string; projectId: number }[],
+): Promise<Map<string, Pricing>> {
   const entries = await Promise.all(
-    hooks.map(async ({ chainId, address }) => {
+    hooks.map(async ({ chainId, address, projectId }) => {
       const key = `${chainId}:${address.toLowerCase()}`;
+      const client = publicClientFor(chainId as JBChainId);
       try {
-        const [currency, decimals] = await publicClientFor(chainId as JBChainId).readContract({
+        const [rawCurrency, decimals] = await client.readContract({
           address: address as Address,
           abi: pricingContextAbi,
           functionName: "pricingContext",
         });
-        return [key, { currency: Number(currency), decimals: Number(decimals) }] as const;
+        const currency = Number(rawCurrency);
+        let symbol = pricingSymbol(currency);
+        if (symbol === "TOKEN") {
+          const contexts = await getAccountingContexts(client, { chainId: chainId as JBChainId, projectId: BigInt(projectId) });
+          symbol = pricingSymbol(currency, await readAcceptedTokens(client, contexts, chainId as JBChainId));
+        }
+        return [key, { currency, decimals: Number(decimals), symbol }] as const;
       } catch (error) {
         console.warn("pricingContext read failed", chainId, address, error instanceof Error ? error.message : String(error));
         return [key, DEFAULT_PRICING] as const;
@@ -172,8 +183,13 @@ async function buildFeed(): Promise<FeedItem[]> {
     bendystraw<SalesQuery>(SUPPORTED_CHAIN_IDS[0], SALES_QUERY, { limit: CATALOG_LIMIT }),
   ]);
   const rows = orderFeedRows(usableFeedRows(data.nftTiers.items), lastSoldAt(sales.mintNftEvents.items));
-  const pricing = await pricingByHook(distinctHooks(rows));
-  const slugs = await slugsByShop(rows.map((r) => ({ chainId: r.chainId, projectId: r.hook.projectId })));
+  const projectOfHook = new Map(rows.map((r) => [`${r.chainId}:${r.hook.address.toLowerCase()}`, r.hook.projectId]));
+  const shops = rows.map((r) => ({ chainId: r.chainId, projectId: r.hook.projectId, project: r.hook.project }));
+  const [pricing, slugs, projectMeta] = await Promise.all([
+    pricingByHook(distinctHooks(rows).map((h) => ({ ...h, projectId: projectOfHook.get(`${h.chainId}:${h.address.toLowerCase()}`)! }))),
+    slugsByShop(shops),
+    metadataByProject(shops),
+  ]);
   // Bendystraw parses tier metadata from the resolver or the tier's encodedIpfsUri, but its
   // gateway fetch is best-effort; a tier it left null would otherwise fail isFeedWorthy and vanish.
   const metas = await Promise.all(
@@ -187,7 +203,7 @@ async function buildFeed(): Promise<FeedItem[]> {
   return rows.flatMap((r, i) => {
     const meta = metas[i];
     if (!isFeedWorthy(meta)) return [];
-    const pm = (r.hook.project?.metadata ?? {}) as { name?: string; logoUri?: string };
+    const pm = projectMeta.get(`${r.chainId}:${r.hook.projectId}`) ?? {};
     const slug = slugs.get(`${r.chainId}:${r.hook.projectId}`)!;
     const tier = {
       id: r.tierId,
@@ -202,7 +218,7 @@ async function buildFeed(): Promise<FeedItem[]> {
       resolvedUri: r.resolvedUri ?? "",
     };
     const p = pricing.get(`${r.chainId}:${r.hook.address.toLowerCase()}`) ?? DEFAULT_PRICING;
-    return [{ ...mapItem({ shopSlug: slug, tier, meta, currency: currencyOf(p), decimals: p.decimals }), shopName: pm.name ?? slug, shopLogo: resolvedMediaUrl(pm.logoUri) }];
+    return [{ ...mapItem({ shopSlug: slug, tier, meta, currency: p.symbol, decimals: p.decimals }), shopName: pm.name || slug, shopLogo: resolvedMediaUrl(pm.logoUri) }];
   });
 }
 

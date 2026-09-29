@@ -111,6 +111,12 @@ describe("mapAcceptedTokens", () => {
     expect(result[0].symbol).toBe("USDC");
   });
 
+  it("labels any other token with its onchain symbol when read", () => {
+    const slop = "0x253bA2F6570a90bC3c7C98e4F7f205B081EA9Ba3";
+    const result = mapAcceptedTokens([{ token: slop, decimals: 18, currency: 2179636131 }], 8453, new Map([[slop.toLowerCase(), "SLOPSHOP"]]));
+    expect(result[0].symbol).toBe("SLOPSHOP");
+  });
+
   it("falls back to TOKEN for anything else", () => {
     const other = "0x0000000000000000000000000000000000dEaD";
     const result = mapAcceptedTokens([{ token: other, decimals: 18, currency: 2 }], 8453);

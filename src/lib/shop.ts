@@ -1,17 +1,16 @@
 import "server-only";
 import { decodeEncodedIpfsUri, getJBContractAddress, isContractRevertError, NATIVE_TOKEN, RevnetCoreContracts, USDC_ADDRESSES, type JBChainId } from "@bananapus/nana-sdk-core";
 import { decode721RulesetMetadata, getAccountingContexts, getCurrentRuleset, getProject721Shop, parseTierMetadataJson, tierDisplayMetadata, tierMediaImageUrl, type Project721Tier, type TierMetadata } from "@bananapus/nana-sdk-core/v6";
-import type { Address } from "viem";
+import { erc20Abi, type Address, type PublicClient } from "viem";
 import { bendystraw } from "./bendystraw";
 import { isSupportedChain, publicClientFor } from "./chains";
 import { handleFor, projectOwner, publicSlugFor } from "./handles";
-import { currencyOf, mapItem, type TierMeta } from "./items";
+import { mapItem, pricingSymbol, type TierMeta } from "./items";
 import { mergeCatalogs } from "./omni";
+import { IPFS_GATEWAY as GATEWAY, onchainMetadataUri, resolveProjectMetadata } from "./projectMeta";
 import { readAllActiveTiers, readResolvedTierUris, RESOLVED_TIER_FETCH_CAP } from "./tiers";
 import type { Item, Shop } from "./types";
 
-// `||` on purpose: the Dockerfile materializes unset build args as empty strings, which `??` misses.
-const GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY?.trim() || "https://juicebox.center/ipfs/";
 const ZERO = "0x0000000000000000000000000000000000000000";
 
 export type BendyTier = {
@@ -75,12 +74,14 @@ export function isRevnetFor(ownerProbe: Address | null, revOwner: Address | null
 /**
  * Map the project's raw accounting contexts to the tokens a buyer can pay
  * with directly, with a display symbol: native gets "ETH", the chain's known
- * USDC address (if the SDK exports one for this chain) gets "USDC", and
- * anything else falls back to "TOKEN" rather than guessing.
+ * USDC address (if the SDK exports one for this chain) gets "USDC", any other
+ * token its onchain symbol from `symbols` (keyed by lowercased address), and
+ * "TOKEN" when that read is missing rather than guessing.
  */
 export function mapAcceptedTokens(
   contexts: readonly { token: Address; decimals: number; currency: number }[],
   chainId: JBChainId,
+  symbols: ReadonlyMap<string, string> = new Map(),
 ): Shop["acceptedTokens"] {
   const usdc = USDC_ADDRESSES[chainId as keyof typeof USDC_ADDRESSES] as Address | undefined;
   return contexts.map((c) => ({
@@ -92,8 +93,29 @@ export function mapAcceptedTokens(
         ? "ETH"
         : usdc && c.token.toLowerCase() === usdc.toLowerCase()
           ? "USDC"
-          : "TOKEN",
+          : (symbols.get(c.token.toLowerCase()) ?? "TOKEN"),
   }));
+}
+
+/** mapAcceptedTokens with each non-native token's ERC-20 symbol() read onchain (best-effort). */
+export async function readAcceptedTokens(
+  client: PublicClient,
+  contexts: readonly { token: Address; decimals: number; currency: number }[],
+  chainId: JBChainId,
+): Promise<Shop["acceptedTokens"]> {
+  const erc20s = contexts.filter((c) => c.token.toLowerCase() !== NATIVE_TOKEN.toLowerCase());
+  const read = await Promise.all(
+    erc20s.map(async (c) => {
+      try {
+        const symbol = await client.readContract({ address: c.token, abi: erc20Abi, functionName: "symbol" });
+        return symbol ? ([c.token.toLowerCase(), symbol] as const) : null;
+      } catch (error) {
+        console.warn("token symbol read failed", chainId, c.token, error instanceof Error ? error.message : String(error));
+        return null;
+      }
+    }),
+  );
+  return mapAcceptedTokens(contexts, chainId, new Map(read.filter((e) => e !== null)));
 }
 
 export function mergeTierMeta(rows: BendyTier[]): Map<number, TierMeta> {
@@ -142,7 +164,7 @@ export async function fetchIpfsTierMeta(encodedIpfsUri: string | null | undefine
 
 const SHOP_QUERY = `query Shop($chainId: Float!, $projectId: Float!) {
   project(chainId: $chainId, projectId: $projectId, version: 6) {
-    metadata isRevnet
+    metadata metadataUri isRevnet
     nftHooks { items { address symbol nftTiers { items { tierId metadata resolvedUri allowOwnerMint transfersPausable cannotBeRemoved reserveBeneficiary } } } }
   }
 }`;
@@ -150,6 +172,7 @@ const SHOP_QUERY = `query Shop($chainId: Float!, $projectId: Float!) {
 type ShopQuery = {
   project: {
     metadata: Record<string, unknown> | null;
+    metadataUri: string | null;
     isRevnet: boolean;
     nftHooks: { items: { address: string; symbol: string; nftTiers: { items: BendyTier[] } }[] };
   } | null;
@@ -222,12 +245,15 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
   // hook, for every non-revnet project — reuse it instead of a second
   // currentRulesetOf call. It's null only for revnets, whose hook comes from
   // REVOwner without a ruleset read, so getCurrentRuleset is still needed there.
-  const [rulesetWithMetadata, flags, handle, rawTiers, accountingContexts] = await Promise.all([
+  const [rulesetWithMetadata, flags, handle, rawTiers, acceptedTokens, pm] = await Promise.all([
     sdk.ruleset ? Promise.resolve(sdk.ruleset) : getCurrentRuleset(client, { chainId, projectId }),
     client.readContract({ address: sdk.store, abi: storeFlagsAbi, functionName: "flagsOf", args: [sdk.hook] }),
     handleFor(chainId, projectId),
     readAllActiveTiers(client, sdk.store, sdk.hook),
-    getAccountingContexts(client, { chainId, projectId }),
+    getAccountingContexts(client, { chainId, projectId }).then((contexts) => readAcceptedTokens(client, contexts, chainId)),
+    // Bendystraw can index a project with `metadata` null (its gateway fetch missed) while
+    // `metadataUri` is set; the name then comes from the URI, or the onchain one.
+    resolveProjectMetadata(bendy, () => onchainMetadataUri(client, chainId, projectId)),
   ]);
   const app = decode721RulesetMetadata(rulesetWithMetadata.metadata.metadata);
   const hookRow = bendy?.nftHooks.items.find((h) => h.address.toLowerCase() === sdk.hook.toLowerCase());
@@ -314,8 +340,7 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
     encodedIpfsUri: t.encodedIpfsUri,
     resolvedUri: "",
   }));
-  const pm = (bendy?.metadata ?? {}) as { name?: string; description?: string; logoUri?: string; projectTagline?: string; ethShop?: { tagline?: string } };
-  const currency = currencyOf(sdk.pricing);
+  const currency = pricingSymbol(sdk.pricing.currency, acceptedTokens);
   const slug = await publicSlugFor(chainId, projectId);
 
   const shop: Shop = {
@@ -341,7 +366,7 @@ export async function readShop(chainId: JBChainId, projectId: bigint): Promise<{
       cashOut: rulesetWithMetadata.metadata.useDataHookForCashOut,
     },
     owner,
-    acceptedTokens: mapAcceptedTokens(accountingContexts, chainId),
+    acceptedTokens,
   };
   const items = tiers.map((t) => mapItem({ shopSlug: slug, tier: t, meta: meta.get(t.id), currency, decimals: sdk.pricing.decimals }));
   return { shop, items };
